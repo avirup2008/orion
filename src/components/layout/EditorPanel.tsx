@@ -15,7 +15,9 @@ import {
   Paperclip,
   Loader2,
   CheckCircle2,
+  FileDown,
 } from "lucide-react";
+import { exportProposalDocx } from "@/lib/export/generate-docx";
 
 interface EditorPanelProps {
   question: RfpQuestion | null;
@@ -196,6 +198,27 @@ export default function EditorPanel({
     });
   }, [question, dispatch]);
 
+  const handleExportDocx = useCallback(async () => {
+    const clientName = state.client.companyName || "Client";
+    const rfpTitle = state.client.industry
+      ? `${clientName} — ${state.client.industry} RFP`
+      : `${clientName} Proposal`;
+
+    // Optionally build cost summary
+    let costSummary;
+    try {
+      const { generateCostSummary } = await import("@/lib/costing");
+      costSummary = generateCostSummary(
+        state.clarification.answers,
+        state.clarification.detectedModules
+      );
+    } catch {
+      // Cost summary is optional
+    }
+
+    await exportProposalDocx(state.questions, clientName, rfpTitle, costSummary);
+  }, [state.client, state.questions, state.clarification]);
+
   if (!question) {
     return (
       <main className="flex-1 flex items-center justify-center bg-[var(--bg)]">
@@ -247,13 +270,24 @@ export default function EditorPanel({
               Cancel
             </button>
           ) : (
-            <button
-              onClick={handleGenerate}
-              className="text-xs font-semibold px-4 py-[7px] rounded-lg bg-[var(--accent)] text-white border border-[var(--accent)] transition-all hover:bg-[var(--accent2)]"
-            >
-              <Sparkles className="w-3.5 h-3.5 inline -mt-px mr-1" />
-              {response ? "Regenerate" : "Generate"}
-            </button>
+            <>
+              <button
+                onClick={handleGenerate}
+                className="text-xs font-semibold px-4 py-[7px] rounded-lg bg-[var(--accent)] text-white border border-[var(--accent)] transition-all hover:bg-[var(--accent2)]"
+              >
+                <Sparkles className="w-3.5 h-3.5 inline -mt-px mr-1" />
+                {response ? "Regenerate" : "Generate"}
+              </button>
+              {state.questions.some((q) => q.response) && (
+                <button
+                  onClick={handleExportDocx}
+                  className="text-xs font-medium px-4 py-[7px] rounded-lg border border-[var(--border2)] bg-[var(--surface)] text-[var(--text2)] transition-all hover:border-[var(--text4)] hover:-translate-y-px hover:shadow-[var(--sh-sm)]"
+                >
+                  <FileDown className="w-3.5 h-3.5 inline -mt-px mr-1" />
+                  Export DOCX
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -14,14 +14,16 @@ import {
   Clock,
   TrendingUp,
   ArrowLeft,
+  FileSpreadsheet,
 } from "lucide-react";
+import { exportCostingXlsx } from "@/lib/export/generate-xlsx";
 
 interface CostDashboardProps {
   onBack: () => void;
 }
 
 export default function CostDashboard({ onBack }: CostDashboardProps) {
-  const { clarification } = useAppState();
+  const { clarification, client } = useAppState();
 
   const costSummary = useMemo(
     () =>
@@ -69,6 +71,15 @@ export default function CostDashboard({ onBack }: CostDashboardProps) {
             </p>
           </div>
         </div>
+        <button
+          onClick={() =>
+            exportCostingXlsx(costSummary, client.companyName || "Client")
+          }
+          className="text-xs font-medium px-4 py-[7px] rounded-lg border border-[var(--border2)] bg-[var(--surface)] text-[var(--text2)] transition-all hover:border-[var(--text4)] hover:-translate-y-px hover:shadow-[var(--sh-sm)]"
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5 inline -mt-px mr-1" />
+          Export XLSX
+        </button>
       </div>
 
       <div className="max-w-[1100px] mx-auto px-8 py-8">
