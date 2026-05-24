@@ -1,7 +1,10 @@
 "use client";
 
+import { useState, useCallback, useRef, useEffect } from "react";
 import { CATEGORY_CONFIG } from "@/types";
 import type { RfpQuestion } from "@/types";
+import { useAppState, useAppDispatch } from "@/lib/store";
+import type { GenerateRequest } from "@/lib/agents";
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,6 +13,8 @@ import {
   ArrowUpDown,
   BookOpen,
   Paperclip,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 interface EditorPanelProps {
@@ -27,6 +32,170 @@ export default function EditorPanel({
   hasPrev,
   hasNext,
 }: EditorPanelProps) {
+  const state = useAppState();
+  const dispatch = useAppDispatch();
+  const [streamingText, setStreamingText] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const streamEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll during streaming
+  useEffect(() => {
+    if (isGenerating && streamEndRef.current) {
+      streamEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [streamingText, isGenerating]);
+
+  // Reset streaming state when question changes
+  useEffect(() => {
+    setStreamingText("");
+    setError(null);
+    // Abort any in-flight generation
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+      setIsGenerating(false);
+    }
+  }, [question?.id]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!question || isGenerating) return;
+
+    setIsGenerating(true);
+    setStreamingText("");
+    setError(null);
+
+    // Update question status to generating
+    dispatch({
+      type: "UPDATE_QUESTION",
+      id: question.id,
+      updates: { status: "generating", response: undefined },
+    });
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const reqBody: GenerateRequest = {
+      questionId: question.id,
+      questionText: question.text,
+      category: question.category,
+      priority: question.priority,
+      client: {
+        companyName: state.client.companyName,
+        industry: state.client.industry,
+        size: state.client.size,
+        painPoints: state.client.painPoints,
+      },
+      clarification: {
+        detectedModules: state.clarification.detectedModules,
+        answers: state.clarification.answers,
+      },
+    };
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reqBody),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === "delta" && data.text) {
+                accumulated += data.text;
+                setStreamingText(accumulated);
+              } else if (data.type === "error") {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
+                // Only throw real errors, not JSON parse issues from partial data
+                if (e.message !== line.slice(6)) throw e;
+              }
+            }
+          }
+        }
+      }
+
+      // Save final response to state
+      const wordCount = accumulated.split(/\s+/).filter(Boolean).length;
+      dispatch({
+        type: "UPDATE_QUESTION",
+        id: question.id,
+        updates: {
+          status: "draft",
+          response: {
+            content: accumulated,
+            wordCount,
+            generatedAt: new Date().toISOString(),
+            kbSourcesUsed: ["claude-ai"],
+          },
+        },
+      });
+
+      setStreamingText("");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        // User cancelled — reset to queued
+        dispatch({
+          type: "UPDATE_QUESTION",
+          id: question.id,
+          updates: { status: "queued" },
+        });
+      } else {
+        const message = err instanceof Error ? err.message : "Generation failed";
+        setError(message);
+        dispatch({
+          type: "UPDATE_QUESTION",
+          id: question.id,
+          updates: { status: "queued" },
+        });
+      }
+    } finally {
+      setIsGenerating(false);
+      abortRef.current = null;
+    }
+  }, [question, isGenerating, state.client, state.clarification, dispatch]);
+
+  const handleCancel = useCallback(() => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+  }, []);
+
+  const handleMarkFinal = useCallback(() => {
+    if (!question) return;
+    dispatch({
+      type: "UPDATE_QUESTION",
+      id: question.id,
+      updates: { status: question.status === "final" ? "draft" : "final" },
+    });
+  }, [question, dispatch]);
+
   if (!question) {
     return (
       <main className="flex-1 flex items-center justify-center bg-[var(--bg)]">
@@ -41,6 +210,7 @@ export default function EditorPanel({
 
   const cat = CATEGORY_CONFIG[question.category];
   const response = question.response;
+  const displayText = isGenerating ? streamingText : response?.content || "";
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--bg)] flex flex-col">
@@ -69,10 +239,22 @@ export default function EditorPanel({
           >
             Next <ChevronRight className="w-3.5 h-3.5 inline -mt-px" />
           </button>
-          <button className="text-xs font-semibold px-4 py-[7px] rounded-lg bg-[var(--accent)] text-white border border-[var(--accent)] transition-all hover:bg-[var(--accent2)]">
-            <Sparkles className="w-3.5 h-3.5 inline -mt-px mr-1" />
-            Regenerate
-          </button>
+          {isGenerating ? (
+            <button
+              onClick={handleCancel}
+              className="text-xs font-semibold px-4 py-[7px] rounded-lg bg-[var(--neg)] text-white border border-[var(--neg)] transition-all hover:brightness-110"
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              onClick={handleGenerate}
+              className="text-xs font-semibold px-4 py-[7px] rounded-lg bg-[var(--accent)] text-white border border-[var(--accent)] transition-all hover:bg-[var(--accent2)]"
+            >
+              <Sparkles className="w-3.5 h-3.5 inline -mt-px mr-1" />
+              {response ? "Regenerate" : "Generate"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -101,20 +283,34 @@ export default function EditorPanel({
           </div>
         </div>
 
-        {/* Response */}
-        {response ? (
+        {/* Error display */}
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-[var(--neg)]/10 border border-[var(--neg)]/20 text-sm text-[var(--neg)]">
+            <strong>Generation failed:</strong> {error}
+          </div>
+        )}
+
+        {/* Streaming / Response display */}
+        {(displayText || isGenerating) ? (
           <div className="mb-7">
             <div className="flex justify-between items-center mb-3">
               <span className="font-mono text-[9px] font-semibold uppercase tracking-[1.5px] text-[var(--text3)]">
-                Generated Response
+                {isGenerating ? "Generating Response" : "Generated Response"}
               </span>
-              <span className="font-mono text-[9px] px-[10px] py-[3px] rounded-full bg-[var(--pos-pale)] text-[var(--pos)] font-semibold">
-                {question.status === "final" ? "✓ Final" : question.status === "review" ? "○ In Review" : "✓ AI Generated"} &mdash;{" "}
-                {response.wordCount} words
-              </span>
+              {isGenerating ? (
+                <span className="font-mono text-[9px] px-[10px] py-[3px] rounded-full bg-[var(--accent)]/10 text-[var(--accent)] font-semibold flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Writing...
+                </span>
+              ) : response ? (
+                <span className="font-mono text-[9px] px-[10px] py-[3px] rounded-full bg-[var(--pos-pale)] text-[var(--pos)] font-semibold">
+                  {question.status === "final" ? "Final" : "Draft"} &mdash;{" "}
+                  {response.wordCount} words
+                </span>
+              ) : null}
             </div>
             <div className="bg-[var(--surface)] border border-[var(--border2)] rounded-[var(--r-lg)] px-7 py-6 shadow-[var(--sh-sm)] text-sm leading-[1.8] text-[var(--text2)] min-h-[200px]">
-              {response.content.split("\n\n").map((para, i) => (
+              {displayText.split("\n\n").map((para, i) => (
                 <p key={i} className="mb-[14px] last:mb-0">
                   {para.split(/(\*\*[^*]+\*\*)/).map((part, j) => {
                     if (part.startsWith("**") && part.endsWith("**")) {
@@ -128,33 +324,53 @@ export default function EditorPanel({
                   })}
                 </p>
               ))}
+              {isGenerating && (
+                <span className="inline-block w-[2px] h-[14px] bg-[var(--accent)] animate-pulse ml-0.5 align-middle" />
+              )}
+              <div ref={streamEndRef} />
             </div>
 
-            {/* Toolbar */}
-            <div className="flex gap-2 mt-3 pt-[10px] border-t border-[var(--border)]">
-              {[
-                { icon: SlidersHorizontal, label: "Refine tone" },
-                { icon: ArrowUpDown, label: "Expand" },
-                { icon: ArrowUpDown, label: "Condense" },
-                { icon: BookOpen, label: "Add from KB" },
-                { icon: Paperclip, label: "Add reference" },
-              ].map((tool) => (
+            {/* Toolbar — only show when not generating */}
+            {!isGenerating && response && (
+              <div className="flex gap-2 mt-3 pt-[10px] border-t border-[var(--border)] flex-wrap">
                 <button
-                  key={tool.label}
-                  className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                  onClick={handleMarkFinal}
+                  className={`font-mono text-[10px] px-3 py-[5px] rounded-md border transition-all ${
+                    question.status === "final"
+                      ? "bg-[var(--pos)]/10 text-[var(--pos)] border-[var(--pos)]/20 hover:bg-[var(--pos)]/20"
+                      : "text-[var(--text4)] border-transparent hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                  }`}
                 >
-                  <tool.icon className="w-3 h-3 inline -mt-px mr-1" />
-                  {tool.label}
+                  <CheckCircle2 className="w-3 h-3 inline -mt-px mr-1" />
+                  {question.status === "final" ? "Marked Final" : "Mark Final"}
                 </button>
-              ))}
-            </div>
+                {[
+                  { icon: SlidersHorizontal, label: "Refine tone" },
+                  { icon: ArrowUpDown, label: "Expand" },
+                  { icon: ArrowUpDown, label: "Condense" },
+                  { icon: BookOpen, label: "Add from KB" },
+                  { icon: Paperclip, label: "Add reference" },
+                ].map((tool) => (
+                  <button
+                    key={tool.label}
+                    className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                  >
+                    <tool.icon className="w-3 h-3 inline -mt-px mr-1" />
+                    {tool.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-[var(--surface)] border border-[var(--border2)] border-dashed rounded-[var(--r-lg)] px-7 py-16 text-center">
             <div className="text-[var(--text4)] text-sm mb-3">
               No response generated yet
             </div>
-            <button className="text-xs font-semibold px-5 py-2 rounded-lg bg-[var(--accent)] text-white transition-all hover:bg-[var(--accent2)]">
+            <button
+              onClick={handleGenerate}
+              className="text-xs font-semibold px-5 py-2 rounded-lg bg-[var(--accent)] text-white transition-all hover:bg-[var(--accent2)]"
+            >
               <Sparkles className="w-3.5 h-3.5 inline -mt-px mr-1" />
               Generate Response
             </button>
@@ -162,7 +378,7 @@ export default function EditorPanel({
         )}
 
         {/* Quality score (if available) */}
-        {response?.qualityScore && (
+        {response?.qualityScore && !isGenerating && (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r)] p-4 mt-4">
             <div className="font-mono text-[9px] font-semibold uppercase tracking-[1.5px] text-[var(--text3)] mb-2">
               Quality Score
