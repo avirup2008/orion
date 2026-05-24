@@ -108,3 +108,11 @@ body {
 /* Dark scrollbar for navy panels */
 .dark-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
 .dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* ── Hero gradient blob drift animation ── */
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -20px) scale(1.05); }
+  50% { transform: translate(-20px, 15px) scale(0.95); }
+  75% { transform: translate(15px, 25px) scale(1.02); }
+}
