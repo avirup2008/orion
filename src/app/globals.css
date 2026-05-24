@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+:root {
+  /* ── Orion Design Tokens ── */
+  /* Backgrounds */
+  --bg: #FAF8F0;
+  --bg2: #F2EFE8;
+  --surface: #FFFDF8;
+  --surface2: #F5F2EA;
+  --surface3: #EBE8E0;
+
+  /* Text */
+  --text: #1C2129;
+  --text2: #4A4F5C;
+  --text3: #6B7080;
+  --text4: #8A8E99;
+
+  /* Accent — Orion teal */
+  --accent: #1B4D4A;
+  --accent2: #2A6B67;
+  --accent-pale: rgba(27, 77, 74, 0.08);
+  --accent-bd: rgba(27, 77, 74, 0.18);
+
+  /* Semantic colors */
+  --gold: #BF801E;
+  --gold-pale: rgba(191, 128, 30, 0.09);
+  --pos: #217348;
+  --pos-pale: rgba(33, 115, 72, 0.08);
+  --pos-bd: rgba(33, 115, 72, 0.18);
+  --neg: #B82E2E;
+  --neg-pale: rgba(184, 46, 46, 0.08);
+  --blue: #175AA6;
+  --blue-pale: rgba(23, 90, 166, 0.08);
+
+  /* Borders */
+  --border: rgba(28, 33, 41, 0.08);
+  --border2: rgba(28, 33, 41, 0.12);
+
+  /* Shadows */
+  --sh-sm: 0 1px 3px rgba(28, 33, 41, 0.06);
+  --sh: 0 4px 16px rgba(28, 33, 41, 0.08), 0 1px 4px rgba(28, 33, 41, 0.04);
+  --sh-lg: 0 12px 40px rgba(28, 33, 41, 0.10), 0 4px 12px rgba(28, 33, 41, 0.05);
+
+  /* Radii */
+  --r: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  /* Navy (outline panel) */
+  --navy: #0F1C2E;
+  --navy2: #162840;
+
+  /* Section category colors */
+  --c-tech: #7B6FAB;
+  --c-func: #5D7FA3;
+  --c-method: #7A9461;
+  --c-team: #A68458;
+  --c-price: #B26B58;
+  --c-ref: #B09558;
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --font-sans: var(--font-ibm-plex-sans);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ibm-plex-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Utility classes for category colors ── */
+.cat-tech { background: rgba(123, 111, 171, 0.1); color: #5D5290; }
+.cat-func { background: rgba(93, 127, 163, 0.1); color: #3D6080; }
+.cat-method { background: rgba(122, 148, 97, 0.1); color: #5A7040; }
+.cat-team { background: rgba(166, 132, 88, 0.1); color: #7A6038; }
+.cat-price { background: rgba(178, 107, 88, 0.1); color: #8A4A38; }
+.cat-ref { background: rgba(176, 149, 88, 0.1); color: #8A7038; }
+
+/* Category border-left colors */
+.bl-tech { border-left-color: #7B6FAB; }
+.bl-func { border-left-color: #5D7FA3; }
+.bl-method { border-left-color: #7A9461; }
+.bl-team { border-left-color: #A68458; }
+.bl-price { border-left-color: #B26B58; }
+.bl-ref { border-left-color: #B09558; }
+
+/* ── Mono label utility ── */
+.mono-label {
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(28, 33, 41, 0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(28, 33, 41, 0.2); }
+
+/* Dark scrollbar for navy panels */
+.dark-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
+.dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
