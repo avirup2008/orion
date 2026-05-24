@@ -960,6 +960,120 @@ export const ANAPLAN_KB = {
   },
 
   // =========================================================================
+  // PLATFORM CAPABILITIES (CloudWorks, Polaris UX, PlanIQ)
+  // =========================================================================
+  platformCapabilities: {
+    cloudworks: {
+      name: "Anaplan CloudWorks",
+      description: "Native integration orchestration platform that connects Anaplan to external systems without middleware",
+      features: [
+        "Pre-built connectors for Salesforce, Workday, SAP, Oracle, AWS S3, Azure Blob, Google BigQuery, Snowflake, Databricks, ServiceNow, HubSpot, NetSuite, SFTP, and HTTP/REST",
+        "Drag-and-drop integration flow builder with scheduled or event-driven triggers",
+        "Data transformation during flow execution — column mapping, data type conversion, filtering",
+        "Multi-step orchestration chains — sequence imports, exports, processes, and cross-model syncs",
+        "Built-in error handling with retry logic, notification alerts, and detailed execution logs",
+        "OAuth 2.0, API key, and certificate-based authentication with encrypted credential vault",
+        "Parallel flow execution for independent data streams to reduce total integration runtime",
+        "Delta/incremental data loading patterns to minimize data transfer and processing time",
+      ],
+      bestPractices: [
+        "Use CloudWorks as first choice for Anaplan integrations before evaluating middleware",
+        "Design modular flows — separate data extraction from transformation from loading",
+        "Implement reconciliation counts at each flow step to detect data loss early",
+        "Schedule resource-intensive flows during off-peak hours (typically 2-6 AM local)",
+        "Version control integration flows by maintaining documentation alongside model changes",
+      ],
+    },
+    polaris: {
+      name: "Anaplan Polaris (New UX Engine)",
+      description: "Next-generation calculation engine and user experience built on a cloud-native, hyperscale architecture",
+      features: [
+        "Hyperscale calculation engine capable of processing billions of cells with sub-second response times",
+        "Multi-dimensional sparse data storage that only allocates resources for cells containing data",
+        "In-memory OLAP engine with columnar storage optimization for planning workloads",
+        "Dynamic cell access — users only load and interact with the cells they need, not the entire model",
+        "New UX dashboard builder with responsive layouts, modern visualization components, and mobile-first design",
+        "Improved list management with support for extremely large hierarchies (millions of members)",
+        "Native support for time-series analysis with built-in temporal aggregation functions",
+        "Cross-model calculations without requiring physical data movement between models",
+      ],
+      migrationConsiderations: [
+        "Classic models can be migrated to Polaris using Anaplan's migration toolkit",
+        "Formula syntax is largely compatible but certain functions may need adaptation",
+        "Dashboard layouts require redesign for the new UX framework",
+        "Performance characteristics differ — operations that were slow in classic may be fast in Polaris and vice versa",
+        "Workspace sizing rules differ between classic and Polaris engines",
+      ],
+    },
+    planIQ: {
+      name: "Anaplan PlanIQ",
+      description: "Machine learning forecasting engine embedded in the Anaplan platform for predictive planning",
+      features: [
+        "Automated ML pipeline that trains, evaluates, and selects the best forecasting algorithm for each data series",
+        "Built-in algorithms: ARIMA, exponential smoothing, Prophet, gradient boosting, neural networks",
+        "External signal integration — weather data, economic indicators, Google Trends for demand sensing",
+        "Forecast accuracy tracking with automated model retraining when performance degrades",
+        "Explainability reports showing which drivers and signals most influence predictions",
+        "Integration with Anaplan models via CloudWorks for seamless forecast data flow",
+      ],
+      useCases: [
+        "Demand forecasting with external signals for supply chain planning",
+        "Revenue forecasting using pipeline data and historical conversion patterns",
+        "Workforce demand prediction based on business volume drivers",
+        "Cash flow forecasting with payment pattern recognition",
+      ],
+    },
+  },
+
+  // =========================================================================
+  // ADDITIONAL INDUSTRY METRICS
+  // =========================================================================
+  industryMetrics: {
+    manufacturing: [
+      "Inventory carrying cost reduction: 15-25% through safety stock optimization",
+      "Demand forecast accuracy improvement: 20-35% with PlanIQ ML models",
+      "S&OP cycle time reduction: from 3 weeks to 5 days on average",
+      "Production planning efficiency: 30% reduction in overtime costs",
+      "Raw material waste reduction: 10-18% through better demand-supply alignment",
+    ],
+    financialServices: [
+      "Regulatory reporting preparation time: 60-70% reduction",
+      "Scenario modeling capacity: from 3-5 scenarios to 50+ per cycle",
+      "Stress testing turnaround: from weeks to hours",
+      "Cost-to-income ratio improvement: 2-4 percentage points",
+      "Branch/unit-level planning cycle: reduced from 6 weeks to 1 week",
+    ],
+    healthcare: [
+      "Patient volume forecast accuracy: 85-92% at department level",
+      "Workforce scheduling optimization: 15-20% reduction in agency/temp spend",
+      "Capital planning cycle reduction: from 4 months to 6 weeks",
+      "Drug inventory waste reduction: 12-18% in pharmacy operations",
+      "Revenue cycle improvement: 8-12% reduction in days in AR",
+    ],
+    technology: [
+      "ARR/MRR forecasting accuracy: 90-95% at 3-month horizon",
+      "Headcount planning cycle: from 4 weeks to 3 days",
+      "Quota deployment time: from 6 weeks to 1 week",
+      "Commission calculation processing: from 5 days to same-day",
+      "Gross margin improvement: 2-3 percentage points through better cost allocation",
+    ],
+    retail: [
+      "Demand forecasting at SKU/store level: 25-40% accuracy improvement",
+      "Promotional lift modeling: 80-85% accuracy on volume impact",
+      "Markdown optimization: 5-8% improvement in sell-through rates",
+      "Store labor scheduling: 10-15% reduction in labor cost per unit sold",
+      "Open-to-buy planning cycle: from weekly to daily refresh capability",
+    ],
+    energy: [
+      "Capital project portfolio optimization: 8-12% improvement in IRR allocation",
+      "Production forecast accuracy: 90-95% for operated assets",
+      "HSE budget compliance: real-time tracking vs quarterly batch reporting",
+      "Renewable capacity planning: scenario comparison across 100+ site combinations",
+      "Trading desk P&L reporting: from T+3 to T+0 with real-time data feeds",
+    ],
+  },
+
+  // =========================================================================
   // MODULE KEYWORDS
   // =========================================================================
   moduleKeywords: {
@@ -1403,6 +1517,29 @@ export function findRelevantKB(questionText: string, topN = 3): KBMatch[] {
         score: 85,
         snippet: config.relevance.substring(0, 120) + '...',
         category: 'compliance',
+      });
+    }
+  }
+
+  // Check platform capabilities (CloudWorks, Polaris, PlanIQ)
+  const platformKeywords: Record<string, readonly string[]> = {
+    cloudworks: ['cloudworks', 'integration', 'connector', 'etl', 'data flow', 'api', 'orchestration', 'middleware', 'data sync', 'import export'],
+    polaris: ['polaris', 'new ux', 'hyperscale', 'next generation', 'performance', 'scalability', 'billion cells', 'large model'],
+    planIQ: ['planiq', 'machine learning', 'ml', 'predictive', 'forecasting algorithm', 'demand sensing', 'ai forecast', 'statistical forecast'],
+  };
+  for (const [capKey, keywords] of Object.entries(platformKeywords)) {
+    let capScore = 0;
+    for (const kw of keywords) {
+      if (text.includes(kw)) capScore += kw.includes(' ') ? 15 : 10;
+    }
+    if (capScore > 0) {
+      const cap = ANAPLAN_KB.platformCapabilities[capKey as keyof typeof ANAPLAN_KB.platformCapabilities];
+      matches.push({
+        title: cap.name,
+        source: 'Built-in KB' as const,
+        score: Math.min(capScore, 100),
+        snippet: cap.description.substring(0, 120) + '...',
+        category: 'platform',
       });
     }
   }

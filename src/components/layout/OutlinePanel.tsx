@@ -1,9 +1,18 @@
 "use client";
 
+import { useCallback } from "react";
 import { CATEGORY_CONFIG } from "@/types";
 import type { ProposalProject, RfpQuestion } from "@/types";
 import { useAppDispatch, useAppState } from "@/lib/store";
-import { Settings2, Calculator, Swords } from "lucide-react";
+import {
+  Settings2,
+  Calculator,
+  Swords,
+  FolderOpen,
+  FileDown,
+  FileText,
+} from "lucide-react";
+import { exportProposalPdf } from "@/lib/export/generate-pdf";
 
 interface OutlinePanelProps {
   project: ProposalProject;
@@ -14,7 +23,7 @@ interface OutlinePanelProps {
 function statusLabel(q: RfpQuestion) {
   switch (q.status) {
     case "final":
-      return <span className="ml-auto font-mono text-[9px] text-[var(--pos)]">✓</span>;
+      return <span className="ml-auto font-mono text-[9px] text-[var(--pos)]">&#10003;</span>;
     case "review":
       return <span className="ml-auto font-mono text-[9px] text-[var(--gold)]">review</span>;
     case "draft":
@@ -32,7 +41,27 @@ export default function OutlinePanel({
   onSelectQuestion,
 }: OutlinePanelProps) {
   const dispatch = useAppDispatch();
-  const { clarification } = useAppState();
+  const { clarification, client, questions } = useAppState();
+
+  const handleExportPdf = useCallback(async () => {
+    const clientName = client.companyName || "Client";
+    const rfpTitle = client.industry
+      ? `${clientName} — ${client.industry} RFP`
+      : `${clientName} Proposal`;
+
+    let costSummary;
+    try {
+      const { generateCostSummary } = await import("@/lib/costing");
+      costSummary = generateCostSummary(
+        clarification.answers,
+        clarification.detectedModules
+      );
+    } catch {
+      /* optional */
+    }
+
+    await exportProposalPdf(questions, clientName, rfpTitle, costSummary);
+  }, [client, questions, clarification]);
 
   return (
     <aside className="w-[260px] min-w-[260px] bg-[var(--navy)] text-white/70 flex flex-col overflow-hidden">
@@ -72,8 +101,8 @@ export default function OutlinePanel({
         </div>
       </div>
 
-      {/* Clarification button */}
-      <div className="px-5 py-3 border-b border-white/[0.06]">
+      {/* Navigation buttons */}
+      <div className="px-5 py-3 border-b border-white/[0.06] space-y-2">
         <button
           onClick={() => dispatch({ type: "SHOW_CLARIFICATION", show: true })}
           className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${
@@ -90,18 +119,41 @@ export default function OutlinePanel({
         </button>
         <button
           onClick={() => dispatch({ type: "SET_VIEW", view: "costing" })}
-          className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60 mt-2"
+          className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
         >
           <Calculator size={13} />
           Cost Dashboard
         </button>
         <button
           onClick={() => dispatch({ type: "SET_VIEW", view: "differentiators" })}
-          className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60 mt-2"
+          className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
         >
           <Swords size={13} />
           Differentiators
         </button>
+        <button
+          onClick={() => dispatch({ type: "SET_VIEW", view: "proposals" })}
+          className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
+        >
+          <FolderOpen size={13} />
+          Proposals & Templates
+        </button>
+
+        {/* Export buttons */}
+        {questions.some((q) => q.response) && (
+          <div className="pt-2 border-t border-white/[0.06]">
+            <div className="font-mono text-[8px] text-white/20 uppercase tracking-[2px] mb-2">
+              Export
+            </div>
+            <button
+              onClick={handleExportPdf}
+              className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
+            >
+              <FileDown size={13} />
+              Export PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Sections + questions */}

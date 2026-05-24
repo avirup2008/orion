@@ -5,6 +5,7 @@ import { CATEGORY_CONFIG } from "@/types";
 import type { RfpQuestion } from "@/types";
 import { useAppState, useAppDispatch } from "@/lib/store";
 import type { GenerateRequest } from "@/lib/agents";
+import type { RefineRequest } from "@/app/api/refine/route";
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,6 +17,10 @@ import {
   Loader2,
   CheckCircle2,
   FileDown,
+  Pencil,
+  X,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 import { exportProposalDocx } from "@/lib/export/generate-docx";
 
@@ -38,37 +43,126 @@ export default function EditorPanel({
   const dispatch = useAppDispatch();
   const [streamingText, setStreamingText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRefining, setIsRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [showCustomPrompt, setShowCustomPrompt] = useState(false);
+  const [customInstruction, setCustomInstruction] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const streamEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-scroll during streaming
   useEffect(() => {
-    if (isGenerating && streamEndRef.current) {
+    if ((isGenerating || isRefining) && streamEndRef.current) {
       streamEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
-  }, [streamingText, isGenerating]);
+  }, [streamingText, isGenerating, isRefining]);
 
-  // Reset streaming state when question changes
+  // Reset state when question changes
   useEffect(() => {
     setStreamingText("");
     setError(null);
-    // Abort any in-flight generation
+    setIsEditing(false);
+    setEditText("");
+    setShowCustomPrompt(false);
+    setCustomInstruction("");
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
       setIsGenerating(false);
+      setIsRefining(false);
     }
   }, [question?.id]);
 
+  // Focus textarea when editing starts
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(
+        textareaRef.current.value.length,
+        textareaRef.current.value.length
+      );
+    }
+  }, [isEditing]);
+
+  // ── SSE stream reader (shared by generate & refine) ──
+  const readStream = useCallback(
+    async (
+      res: Response,
+      questionId: string,
+      onComplete?: (text: string) => void
+    ) => {
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let accumulated = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === "delta" && data.text) {
+                accumulated += data.text;
+                setStreamingText(accumulated);
+              } else if (data.type === "error") {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              if (
+                e instanceof Error &&
+                e.message !== "Unexpected end of JSON input" &&
+                e.message !== line.slice(6)
+              ) {
+                throw e;
+              }
+            }
+          }
+        }
+      }
+
+      // Save final response
+      const wordCount = accumulated.split(/\s+/).filter(Boolean).length;
+      dispatch({
+        type: "UPDATE_QUESTION",
+        id: questionId,
+        updates: {
+          status: "draft",
+          response: {
+            content: accumulated,
+            wordCount,
+            generatedAt: new Date().toISOString(),
+            kbSourcesUsed: ["claude-ai"],
+          },
+        },
+      });
+
+      setStreamingText("");
+      onComplete?.(accumulated);
+    },
+    [dispatch]
+  );
+
+  // ── Generate ──
   const handleGenerate = useCallback(async () => {
-    if (!question || isGenerating) return;
+    if (!question || isGenerating || isRefining) return;
 
     setIsGenerating(true);
     setStreamingText("");
     setError(null);
+    setIsEditing(false);
 
-    // Update question status to generating
     dispatch({
       type: "UPDATE_QUESTION",
       id: question.id,
@@ -104,72 +198,23 @@ export default function EditorPanel({
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        const errData = await res
+          .json()
+          .catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(errData.error || `HTTP ${res.status}`);
       }
 
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response stream");
-
-      const decoder = new TextDecoder();
-      let accumulated = "";
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === "delta" && data.text) {
-                accumulated += data.text;
-                setStreamingText(accumulated);
-              } else if (data.type === "error") {
-                throw new Error(data.error);
-              }
-            } catch (e) {
-              if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
-                // Only throw real errors, not JSON parse issues from partial data
-                if (e.message !== line.slice(6)) throw e;
-              }
-            }
-          }
-        }
-      }
-
-      // Save final response to state
-      const wordCount = accumulated.split(/\s+/).filter(Boolean).length;
-      dispatch({
-        type: "UPDATE_QUESTION",
-        id: question.id,
-        updates: {
-          status: "draft",
-          response: {
-            content: accumulated,
-            wordCount,
-            generatedAt: new Date().toISOString(),
-            kbSourcesUsed: ["claude-ai"],
-          },
-        },
-      });
-
-      setStreamingText("");
+      await readStream(res, question.id);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        // User cancelled — reset to queued
         dispatch({
           type: "UPDATE_QUESTION",
           id: question.id,
           updates: { status: "queued" },
         });
       } else {
-        const message = err instanceof Error ? err.message : "Generation failed";
+        const message =
+          err instanceof Error ? err.message : "Generation failed";
         setError(message);
         dispatch({
           type: "UPDATE_QUESTION",
@@ -181,12 +226,97 @@ export default function EditorPanel({
       setIsGenerating(false);
       abortRef.current = null;
     }
-  }, [question, isGenerating, state.client, state.clarification, dispatch]);
+  }, [question, isGenerating, isRefining, state.client, state.clarification, dispatch, readStream]);
+
+  // ── Refine (tone, expand, condense, add-kb, custom) ──
+  const handleRefine = useCallback(
+    async (action: RefineRequest["action"], kbSnippet?: string) => {
+      if (!question || !question.response || isGenerating || isRefining)
+        return;
+
+      if (action === "custom" && !customInstruction.trim()) {
+        setShowCustomPrompt(true);
+        return;
+      }
+
+      setIsRefining(true);
+      setStreamingText("");
+      setError(null);
+      setIsEditing(false);
+
+      dispatch({
+        type: "UPDATE_QUESTION",
+        id: question.id,
+        updates: { status: "generating" },
+      });
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const reqBody: RefineRequest = {
+        action,
+        currentResponse: question.response.content,
+        questionText: question.text,
+        category: question.category,
+        client: {
+          companyName: state.client.companyName,
+          industry: state.client.industry,
+          size: state.client.size,
+          painPoints: state.client.painPoints,
+        },
+        clarification: {
+          detectedModules: state.clarification.detectedModules,
+          answers: state.clarification.answers,
+        },
+        ...(action === "custom" && { customInstruction }),
+        ...(action === "add-kb" && { kbSnippet }),
+      };
+
+      try {
+        const res = await fetch("/api/refine", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(reqBody),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errData = await res
+            .json()
+            .catch(() => ({ error: `HTTP ${res.status}` }));
+          throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+
+        await readStream(res, question.id);
+        setShowCustomPrompt(false);
+        setCustomInstruction("");
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          dispatch({
+            type: "UPDATE_QUESTION",
+            id: question.id,
+            updates: { status: "draft" },
+          });
+        } else {
+          const message =
+            err instanceof Error ? err.message : "Refinement failed";
+          setError(message);
+          dispatch({
+            type: "UPDATE_QUESTION",
+            id: question.id,
+            updates: { status: "draft" },
+          });
+        }
+      } finally {
+        setIsRefining(false);
+        abortRef.current = null;
+      }
+    },
+    [question, isGenerating, isRefining, customInstruction, state.client, state.clarification, dispatch, readStream]
+  );
 
   const handleCancel = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-    }
+    if (abortRef.current) abortRef.current.abort();
   }, []);
 
   const handleMarkFinal = useCallback(() => {
@@ -198,13 +328,44 @@ export default function EditorPanel({
     });
   }, [question, dispatch]);
 
+  // ── Inline editing ──
+  const handleStartEdit = useCallback(() => {
+    if (!question?.response) return;
+    setEditText(question.response.content);
+    setIsEditing(true);
+  }, [question]);
+
+  const handleSaveEdit = useCallback(() => {
+    if (!question) return;
+    const wordCount = editText.split(/\s+/).filter(Boolean).length;
+    dispatch({
+      type: "UPDATE_QUESTION",
+      id: question.id,
+      updates: {
+        status: "draft",
+        response: {
+          content: editText,
+          wordCount,
+          generatedAt: new Date().toISOString(),
+          kbSourcesUsed: question.response?.kbSourcesUsed || ["manual-edit"],
+        },
+      },
+    });
+    setIsEditing(false);
+  }, [question, editText, dispatch]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setEditText("");
+  }, []);
+
+  // ── Export DOCX ──
   const handleExportDocx = useCallback(async () => {
     const clientName = state.client.companyName || "Client";
     const rfpTitle = state.client.industry
       ? `${clientName} — ${state.client.industry} RFP`
       : `${clientName} Proposal`;
 
-    // Optionally build cost summary
     let costSummary;
     try {
       const { generateCostSummary } = await import("@/lib/costing");
@@ -213,10 +374,15 @@ export default function EditorPanel({
         state.clarification.detectedModules
       );
     } catch {
-      // Cost summary is optional
+      /* optional */
     }
 
-    await exportProposalDocx(state.questions, clientName, rfpTitle, costSummary);
+    await exportProposalDocx(
+      state.questions,
+      clientName,
+      rfpTitle,
+      costSummary
+    );
   }, [state.client, state.questions, state.clarification]);
 
   if (!question) {
@@ -233,7 +399,9 @@ export default function EditorPanel({
 
   const cat = CATEGORY_CONFIG[question.category];
   const response = question.response;
-  const displayText = isGenerating ? streamingText : response?.content || "";
+  const displayText =
+    isGenerating || isRefining ? streamingText : response?.content || "";
+  const isBusy = isGenerating || isRefining;
 
   return (
     <main className="flex-1 overflow-y-auto bg-[var(--bg)] flex flex-col">
@@ -262,7 +430,7 @@ export default function EditorPanel({
           >
             Next <ChevronRight className="w-3.5 h-3.5 inline -mt-px" />
           </button>
-          {isGenerating ? (
+          {isBusy ? (
             <button
               onClick={handleCancel}
               className="text-xs font-semibold px-4 py-[7px] rounded-lg bg-[var(--neg)] text-white border border-[var(--neg)] transition-all hover:brightness-110"
@@ -311,7 +479,14 @@ export default function EditorPanel({
             {question.text}
           </div>
           <div className="flex gap-4 mt-3 font-mono text-[10px] text-[var(--text4)]">
-            <span>Priority: {question.priority === "high" ? "High" : question.priority === "medium" ? "Medium" : "Low"}</span>
+            <span>
+              Priority:{" "}
+              {question.priority === "high"
+                ? "High"
+                : question.priority === "medium"
+                ? "Medium"
+                : "Low"}
+            </span>
             {question.weight && <span>Weight: {question.weight}%</span>}
             {question.maxWords && <span>Max words: {question.maxWords}</span>}
           </div>
@@ -320,21 +495,27 @@ export default function EditorPanel({
         {/* Error display */}
         {error && (
           <div className="mb-4 px-4 py-3 rounded-lg bg-[var(--neg)]/10 border border-[var(--neg)]/20 text-sm text-[var(--neg)]">
-            <strong>Generation failed:</strong> {error}
+            <strong>Error:</strong> {error}
           </div>
         )}
 
-        {/* Streaming / Response display */}
-        {(displayText || isGenerating) ? (
+        {/* Streaming / Response / Edit display */}
+        {displayText || isBusy || isEditing ? (
           <div className="mb-7">
             <div className="flex justify-between items-center mb-3">
               <span className="font-mono text-[9px] font-semibold uppercase tracking-[1.5px] text-[var(--text3)]">
-                {isGenerating ? "Generating Response" : "Generated Response"}
+                {isBusy
+                  ? isRefining
+                    ? "Refining Response"
+                    : "Generating Response"
+                  : isEditing
+                  ? "Editing Response"
+                  : "Generated Response"}
               </span>
-              {isGenerating ? (
+              {isBusy ? (
                 <span className="font-mono text-[9px] px-[10px] py-[3px] rounded-full bg-[var(--accent)]/10 text-[var(--accent)] font-semibold flex items-center gap-1.5">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Writing...
+                  {isRefining ? "Refining..." : "Writing..."}
                 </span>
               ) : response ? (
                 <span className="font-mono text-[9px] px-[10px] py-[3px] rounded-full bg-[var(--pos-pale)] text-[var(--pos)] font-semibold">
@@ -343,29 +524,106 @@ export default function EditorPanel({
                 </span>
               ) : null}
             </div>
-            <div className="bg-[var(--surface)] border border-[var(--border2)] rounded-[var(--r-lg)] px-7 py-6 shadow-[var(--sh-sm)] text-sm leading-[1.8] text-[var(--text2)] min-h-[200px]">
-              {displayText.split("\n\n").map((para, i) => (
-                <p key={i} className="mb-[14px] last:mb-0">
-                  {para.split(/(\*\*[^*]+\*\*)/).map((part, j) => {
-                    if (part.startsWith("**") && part.endsWith("**")) {
-                      return (
-                        <strong key={j} className="text-[var(--text)] font-semibold">
-                          {part.slice(2, -2)}
-                        </strong>
-                      );
-                    }
-                    return part;
-                  })}
-                </p>
-              ))}
-              {isGenerating && (
-                <span className="inline-block w-[2px] h-[14px] bg-[var(--accent)] animate-pulse ml-0.5 align-middle" />
-              )}
-              <div ref={streamEndRef} />
-            </div>
 
-            {/* Toolbar — only show when not generating */}
-            {!isGenerating && response && (
+            {isEditing ? (
+              /* ── Inline editor ── */
+              <div>
+                <textarea
+                  ref={textareaRef}
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="w-full bg-[var(--surface)] border border-[var(--accent-bd)] rounded-[var(--r-lg)] px-7 py-6 shadow-[var(--sh-sm)] text-sm leading-[1.8] text-[var(--text2)] min-h-[300px] resize-y outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 font-[inherit]"
+                  placeholder="Edit your response..."
+                />
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={handleSaveEdit}
+                    className="text-xs font-semibold px-4 py-[7px] rounded-lg bg-[var(--accent)] text-white transition-all hover:bg-[var(--accent2)]"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 inline -mt-px mr-1" />
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="text-xs font-medium px-4 py-[7px] rounded-lg border border-[var(--border2)] bg-[var(--surface)] text-[var(--text2)] transition-all hover:border-[var(--text4)]"
+                  >
+                    <X className="w-3.5 h-3.5 inline -mt-px mr-1" />
+                    Cancel
+                  </button>
+                  <span className="ml-auto font-mono text-[10px] text-[var(--text4)] self-center">
+                    {editText.split(/\s+/).filter(Boolean).length} words
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* ── Response display ── */
+              <div className="bg-[var(--surface)] border border-[var(--border2)] rounded-[var(--r-lg)] px-7 py-6 shadow-[var(--sh-sm)] text-sm leading-[1.8] text-[var(--text2)] min-h-[200px]">
+                {displayText.split("\n\n").map((para, i) => (
+                  <p key={i} className="mb-[14px] last:mb-0">
+                    {para.split(/(\*\*[^*]+\*\*)/).map((part, j) => {
+                      if (part.startsWith("**") && part.endsWith("**")) {
+                        return (
+                          <strong
+                            key={j}
+                            className="text-[var(--text)] font-semibold"
+                          >
+                            {part.slice(2, -2)}
+                          </strong>
+                        );
+                      }
+                      return part;
+                    })}
+                  </p>
+                ))}
+                {isBusy && (
+                  <span className="inline-block w-[2px] h-[14px] bg-[var(--accent)] animate-pulse ml-0.5 align-middle" />
+                )}
+                <div ref={streamEndRef} />
+              </div>
+            )}
+
+            {/* ── Custom instruction input ── */}
+            {showCustomPrompt && !isBusy && (
+              <div className="mt-3 flex gap-2">
+                <input
+                  type="text"
+                  value={customInstruction}
+                  onChange={(e) => setCustomInstruction(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && customInstruction.trim()) {
+                      handleRefine("custom");
+                    }
+                    if (e.key === "Escape") {
+                      setShowCustomPrompt(false);
+                      setCustomInstruction("");
+                    }
+                  }}
+                  placeholder="e.g., Make more technical, Add ROI metrics, Focus on security..."
+                  className="flex-1 text-xs px-4 py-[7px] rounded-lg border border-[var(--border2)] bg-[var(--surface)] text-[var(--text)] outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/20 placeholder:text-[var(--text4)]"
+                  autoFocus
+                />
+                <button
+                  onClick={() => handleRefine("custom")}
+                  disabled={!customInstruction.trim()}
+                  className="text-xs font-semibold px-4 py-[7px] rounded-lg bg-[var(--accent)] text-white transition-all hover:bg-[var(--accent2)] disabled:opacity-40"
+                >
+                  <Send className="w-3.5 h-3.5 inline -mt-px mr-1" />
+                  Refine
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCustomPrompt(false);
+                    setCustomInstruction("");
+                  }}
+                  className="text-xs font-medium px-3 py-[7px] rounded-lg border border-[var(--border2)] bg-[var(--surface)] text-[var(--text4)] transition-all hover:border-[var(--text4)]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* ── Toolbar ── */}
+            {!isBusy && !isEditing && response && (
               <div className="flex gap-2 mt-3 pt-[10px] border-t border-[var(--border)] flex-wrap">
                 <button
                   onClick={handleMarkFinal}
@@ -378,21 +636,48 @@ export default function EditorPanel({
                   <CheckCircle2 className="w-3 h-3 inline -mt-px mr-1" />
                   {question.status === "final" ? "Marked Final" : "Mark Final"}
                 </button>
-                {[
-                  { icon: SlidersHorizontal, label: "Refine tone" },
-                  { icon: ArrowUpDown, label: "Expand" },
-                  { icon: ArrowUpDown, label: "Condense" },
-                  { icon: BookOpen, label: "Add from KB" },
-                  { icon: Paperclip, label: "Add reference" },
-                ].map((tool) => (
-                  <button
-                    key={tool.label}
-                    className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
-                  >
-                    <tool.icon className="w-3 h-3 inline -mt-px mr-1" />
-                    {tool.label}
-                  </button>
-                ))}
+                <button
+                  onClick={handleStartEdit}
+                  className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                >
+                  <Pencil className="w-3 h-3 inline -mt-px mr-1" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleRefine("refine-tone")}
+                  className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                >
+                  <SlidersHorizontal className="w-3 h-3 inline -mt-px mr-1" />
+                  Refine tone
+                </button>
+                <button
+                  onClick={() => handleRefine("expand")}
+                  className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                >
+                  <ArrowUpDown className="w-3 h-3 inline -mt-px mr-1" />
+                  Expand
+                </button>
+                <button
+                  onClick={() => handleRefine("condense")}
+                  className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                >
+                  <ArrowUpDown className="w-3 h-3 inline -mt-px mr-1" />
+                  Condense
+                </button>
+                <button
+                  onClick={() => handleRefine("add-kb")}
+                  className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                >
+                  <BookOpen className="w-3 h-3 inline -mt-px mr-1" />
+                  Add from KB
+                </button>
+                <button
+                  onClick={() => setShowCustomPrompt(true)}
+                  className="font-mono text-[10px] text-[var(--text4)] px-3 py-[5px] rounded-md border border-transparent transition-all hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                >
+                  <MessageSquare className="w-3 h-3 inline -mt-px mr-1" />
+                  Custom rewrite
+                </button>
               </div>
             )}
           </div>
@@ -412,7 +697,7 @@ export default function EditorPanel({
         )}
 
         {/* Quality score (if available) */}
-        {response?.qualityScore && !isGenerating && (
+        {response?.qualityScore && !isBusy && !isEditing && (
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r)] p-4 mt-4">
             <div className="font-mono text-[9px] font-semibold uppercase tracking-[1.5px] text-[var(--text3)] mb-2">
               Quality Score

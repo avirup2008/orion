@@ -20,6 +20,7 @@ import {
   FileDown,
 } from "lucide-react";
 import { exportProposalDocx } from "@/lib/export/generate-docx";
+import { exportProposalPdf } from "@/lib/export/generate-pdf";
 
 interface DifferentiatorsPanelProps {
   onBack: () => void;
@@ -91,6 +92,14 @@ export default function DifferentiatorsPanel({
     await exportProposalDocx(questions, clientName, rfpTitle, costSummary);
   };
 
+  const handleExportPdf = async () => {
+    const clientName = client.companyName || "Client";
+    const rfpTitle = client.industry
+      ? `${clientName} — ${client.industry} RFP`
+      : `${clientName} Proposal`;
+    await exportProposalPdf(questions, clientName, rfpTitle, costSummary);
+  };
+
   return (
     <div className="h-full overflow-y-auto bg-[var(--bg)]">
       {/* Header */}
@@ -112,13 +121,22 @@ export default function DifferentiatorsPanel({
             </p>
           </div>
         </div>
-        <button
-          onClick={handleExportDocx}
-          className="text-xs font-medium px-4 py-[7px] rounded-lg border border-[var(--border2)] bg-[var(--surface)] text-[var(--text2)] transition-all hover:border-[var(--text4)] hover:-translate-y-px hover:shadow-[var(--sh-sm)]"
-        >
-          <FileDown className="w-3.5 h-3.5 inline -mt-px mr-1" />
-          Export Full Proposal
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportDocx}
+            className="text-xs font-medium px-4 py-[7px] rounded-lg border border-[var(--border2)] bg-[var(--surface)] text-[var(--text2)] transition-all hover:border-[var(--text4)] hover:-translate-y-px hover:shadow-[var(--sh-sm)]"
+          >
+            <FileDown className="w-3.5 h-3.5 inline -mt-px mr-1" />
+            Export DOCX
+          </button>
+          <button
+            onClick={handleExportPdf}
+            className="text-xs font-medium px-4 py-[7px] rounded-lg border border-[var(--border2)] bg-[var(--surface)] text-[var(--text2)] transition-all hover:border-[var(--text4)] hover:-translate-y-px hover:shadow-[var(--sh-sm)]"
+          >
+            <FileDown className="w-3.5 h-3.5 inline -mt-px mr-1" />
+            Export PDF
+          </button>
+        </div>
       </div>
 
       <div className="max-w-[1100px] mx-auto px-8 py-8">
