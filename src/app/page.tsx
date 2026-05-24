@@ -8,6 +8,7 @@ import EditorPanel from "@/components/layout/EditorPanel";
 import ContextPanel from "@/components/layout/ContextPanel";
 import ClarificationPanel from "@/components/clarification/ClarificationPanel";
 import CostDashboard from "@/components/costing/CostDashboard";
+import DifferentiatorsPanel from "@/components/differentiators/DifferentiatorsPanel";
 import { mockPastProposals } from "@/data/mock-project";
 import { findRelevantKB } from "@/data/knowledge-base";
 import type { ProposalProject, KbMatch } from "@/types";
@@ -84,6 +85,10 @@ export default function Home() {
 
   if (state.currentView === "costing") {
     return <CostDashboard onBack={handleBackToStudio} />;
+  }
+
+  if (state.currentView === "differentiators") {
+    return <DifferentiatorsPanel onBack={handleBackToStudio} />;
   }
 
   return (

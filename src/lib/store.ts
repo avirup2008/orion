@@ -32,7 +32,7 @@ export interface ClarificationState {
 
 export interface AppState {
   // Workflow
-  currentView: "intake" | "studio" | "costing";
+  currentView: "intake" | "studio" | "costing" | "differentiators";
   showClarification: boolean;
 
   // Intake data
@@ -50,7 +50,7 @@ export interface AppState {
 // ── Actions ──
 
 export type AppAction =
-  | { type: "SET_VIEW"; view: "intake" | "studio" | "costing" }
+  | { type: "SET_VIEW"; view: "intake" | "studio" | "costing" | "differentiators" }
   | { type: "SET_CLIENT"; client: Partial<ClientContext> }
   | { type: "ADD_QUESTIONS"; questions: RfpQuestion[] }
   | { type: "CLEAR_QUESTIONS" }

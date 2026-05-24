@@ -3,7 +3,7 @@
 import { CATEGORY_CONFIG } from "@/types";
 import type { ProposalProject, RfpQuestion } from "@/types";
 import { useAppDispatch, useAppState } from "@/lib/store";
-import { Settings2, Calculator } from "lucide-react";
+import { Settings2, Calculator, Swords } from "lucide-react";
 
 interface OutlinePanelProps {
   project: ProposalProject;
@@ -94,6 +94,13 @@ export default function OutlinePanel({
         >
           <Calculator size={13} />
           Cost Dashboard
+        </button>
+        <button
+          onClick={() => dispatch({ type: "SET_VIEW", view: "differentiators" })}
+          className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60 mt-2"
+        >
+          <Swords size={13} />
+          Differentiators
         </button>
       </div>
 
