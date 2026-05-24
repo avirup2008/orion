@@ -6,8 +6,10 @@ import IntakePage from "@/components/intake/IntakePage";
 import OutlinePanel from "@/components/layout/OutlinePanel";
 import EditorPanel from "@/components/layout/EditorPanel";
 import ContextPanel from "@/components/layout/ContextPanel";
-import { mockKbMatches, mockPastProposals } from "@/data/mock-project";
-import type { ProposalProject } from "@/types";
+import ClarificationPanel from "@/components/clarification/ClarificationPanel";
+import { mockPastProposals } from "@/data/mock-project";
+import { findRelevantKB } from "@/data/knowledge-base";
+import type { ProposalProject, KbMatch } from "@/types";
 
 export default function Home() {
   const state = useAppState();
@@ -34,6 +36,19 @@ export default function Home() {
     [state.questions, state.activeQuestionId]
   );
 
+  // Live KB matches based on active question
+  const liveKbMatches: KbMatch[] = useMemo(() => {
+    if (!activeQuestion) return [];
+    const matches = findRelevantKB(activeQuestion.text, 5);
+    return matches.map((m, i) => ({
+      id: `kb-${i}`,
+      title: m.title,
+      source: m.source,
+      matchScore: m.score,
+      preview: m.snippet,
+    }));
+  }, [activeQuestion]);
+
   const handlePrev = useCallback(() => {
     if (activeIndex > 0) {
       dispatch({ type: "SET_ACTIVE_QUESTION", id: state.questions[activeIndex - 1].id });
@@ -59,23 +74,26 @@ export default function Home() {
   }
 
   return (
-    <div className="h-full flex overflow-hidden">
-      <OutlinePanel
-        project={project}
-        activeQuestionId={state.activeQuestionId}
-        onSelectQuestion={handleSelectQuestion}
-      />
-      <EditorPanel
-        question={activeQuestion}
-        onPrev={handlePrev}
-        onNext={handleNext}
-        hasPrev={activeIndex > 0}
-        hasNext={activeIndex < state.questions.length - 1}
-      />
-      <ContextPanel
-        kbMatches={mockKbMatches}
-        pastProposals={mockPastProposals}
-      />
-    </div>
+    <>
+      <div className="h-full flex overflow-hidden">
+        <OutlinePanel
+          project={project}
+          activeQuestionId={state.activeQuestionId}
+          onSelectQuestion={handleSelectQuestion}
+        />
+        <EditorPanel
+          question={activeQuestion}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          hasPrev={activeIndex > 0}
+          hasNext={activeIndex < state.questions.length - 1}
+        />
+        <ContextPanel
+          kbMatches={liveKbMatches}
+          pastProposals={mockPastProposals}
+        />
+      </div>
+      {state.showClarification && <ClarificationPanel />}
+    </>
   );
 }

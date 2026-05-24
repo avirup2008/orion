@@ -20,16 +20,28 @@ export interface ClientContext {
   painPoints: string;
 }
 
+// ── Clarification state ──
+
+export interface ClarificationState {
+  isComplete: boolean;
+  detectedModules: string[];
+  answers: Record<string, string>; // questionId -> answer
+}
+
 // ── App state ──
 
 export interface AppState {
   // Workflow
   currentView: "intake" | "studio";
+  showClarification: boolean;
 
   // Intake data
   client: ClientContext;
   questions: RfpQuestion[];
   activeQuestionId: string | null;
+
+  // Clarification
+  clarification: ClarificationState;
 
   // Upload state
   referenceDocNames: string[];
@@ -47,12 +59,17 @@ export type AppAction =
   | { type: "DELETE_QUESTION"; id: string }
   | { type: "REORDER_QUESTIONS"; questions: RfpQuestion[] }
   | { type: "ADD_REFERENCE_DOC"; name: string }
-  | { type: "REMOVE_REFERENCE_DOC"; name: string };
+  | { type: "REMOVE_REFERENCE_DOC"; name: string }
+  | { type: "SHOW_CLARIFICATION"; show: boolean }
+  | { type: "SET_DETECTED_MODULES"; modules: string[] }
+  | { type: "SET_CLARIFICATION_ANSWER"; questionId: string; answer: string }
+  | { type: "COMPLETE_CLARIFICATION" };
 
 // ── Initial state ──
 
 export const initialState: AppState = {
   currentView: "intake",
+  showClarification: false,
   client: {
     companyName: "",
     industry: "",
@@ -61,6 +78,11 @@ export const initialState: AppState = {
   },
   questions: [],
   activeQuestionId: null,
+  clarification: {
+    isComplete: false,
+    detectedModules: [],
+    answers: {},
+  },
   referenceDocNames: [],
 };
 
@@ -121,6 +143,31 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         referenceDocNames: state.referenceDocNames.filter(
           (n) => n !== action.name
         ),
+      };
+
+    case "SHOW_CLARIFICATION":
+      return { ...state, showClarification: action.show };
+
+    case "SET_DETECTED_MODULES":
+      return {
+        ...state,
+        clarification: { ...state.clarification, detectedModules: action.modules },
+      };
+
+    case "SET_CLARIFICATION_ANSWER":
+      return {
+        ...state,
+        clarification: {
+          ...state.clarification,
+          answers: { ...state.clarification.answers, [action.questionId]: action.answer },
+        },
+      };
+
+    case "COMPLETE_CLARIFICATION":
+      return {
+        ...state,
+        showClarification: false,
+        clarification: { ...state.clarification, isComplete: true },
       };
 
     default:

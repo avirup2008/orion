@@ -2,6 +2,8 @@
 
 import { CATEGORY_CONFIG } from "@/types";
 import type { ProposalProject, RfpQuestion } from "@/types";
+import { useAppDispatch, useAppState } from "@/lib/store";
+import { Settings2 } from "lucide-react";
 
 interface OutlinePanelProps {
   project: ProposalProject;
@@ -29,6 +31,9 @@ export default function OutlinePanel({
   activeQuestionId,
   onSelectQuestion,
 }: OutlinePanelProps) {
+  const dispatch = useAppDispatch();
+  const { clarification } = useAppState();
+
   return (
     <aside className="w-[260px] min-w-[260px] bg-[var(--navy)] text-white/70 flex flex-col overflow-hidden">
       {/* Brand header */}
@@ -65,6 +70,24 @@ export default function OutlinePanel({
             style={{ width: `${project.completionPercent}%` }}
           />
         </div>
+      </div>
+
+      {/* Clarification button */}
+      <div className="px-5 py-3 border-b border-white/[0.06]">
+        <button
+          onClick={() => dispatch({ type: "SHOW_CLARIFICATION", show: true })}
+          className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${
+            clarification.isComplete
+              ? "bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
+              : "bg-[var(--accent)]/20 text-[var(--accent2)] hover:bg-[var(--accent)]/30"
+          }`}
+        >
+          <Settings2 size={13} />
+          {clarification.isComplete ? "Edit Engagement Settings" : "Configure Engagement"}
+          {!clarification.isComplete && (
+            <span className="ml-auto w-2 h-2 rounded-full bg-[var(--accent2)] animate-pulse" />
+          )}
+        </button>
       </div>
 
       {/* Sections + questions */}

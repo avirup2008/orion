@@ -7,7 +7,7 @@ import QuestionList from "./QuestionList";
 import { ArrowRight, FileText } from "lucide-react";
 
 export default function IntakePage() {
-  const { questions, client } = useAppState();
+  const { questions, client, clarification } = useAppState();
   const dispatch = useAppDispatch();
   const sections = getSectionSummaries(questions);
 
@@ -17,6 +17,10 @@ export default function IntakePage() {
     if (!canProceed) return;
     dispatch({ type: "SET_VIEW", view: "studio" });
     dispatch({ type: "SET_ACTIVE_QUESTION", id: questions[0]?.id ?? null });
+    // Show clarification flow on first entry (not if already completed)
+    if (!clarification.isComplete) {
+      dispatch({ type: "SHOW_CLARIFICATION", show: true });
+    }
   };
 
   return (
