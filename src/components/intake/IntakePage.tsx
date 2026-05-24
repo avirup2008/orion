@@ -9,11 +9,10 @@ import {
   FileText,
   Zap,
   BarChart3,
-  Shield,
   Globe2,
-  Sparkles,
-  ChevronDown,
   FolderOpen,
+  MessageSquare,
+  DollarSign,
 } from "lucide-react";
 
 export default function IntakePage() {
@@ -39,206 +38,236 @@ export default function IntakePage() {
   return (
     <div className="h-full overflow-y-auto bg-[var(--bg)] scroll-smooth">
       {/* ═══════════════════════════════════════════════════════════ */}
-      {/* HERO SECTION — Full-bleed Meridian-inspired dark gradient  */}
+      {/* NAV BAR                                                   */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <section className="relative min-h-[100vh] flex flex-col overflow-hidden">
-        {/* Animated gradient background */}
-        <div className="absolute inset-0 bg-[#0A1628]">
-          {/* Mesh gradient blobs */}
-          <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] rounded-full opacity-[0.15] blur-[120px] animate-[drift_20s_ease-in-out_infinite]"
-            style={{ background: "radial-gradient(circle, #1B4D4A 0%, transparent 70%)" }}
-          />
-          <div className="absolute bottom-[-30%] left-[-15%] w-[900px] h-[900px] rounded-full opacity-[0.1] blur-[140px] animate-[drift_25s_ease-in-out_infinite_reverse]"
-            style={{ background: "radial-gradient(circle, #2A6B67 0%, transparent 70%)" }}
-          />
-          <div className="absolute top-[30%] left-[40%] w-[500px] h-[500px] rounded-full opacity-[0.08] blur-[100px] animate-[drift_15s_ease-in-out_infinite_2s]"
-            style={{ background: "radial-gradient(circle, #BF801E 0%, transparent 70%)" }}
-          />
-          {/* Grid overlay */}
-          <div className="absolute inset-0 opacity-[0.03]"
-            style={{
-              backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-              backgroundSize: "60px 60px",
-            }}
-          />
-          {/* Radial vignette */}
-          <div className="absolute inset-0"
-            style={{ background: "radial-gradient(ellipse 80% 60% at 50% 40%, transparent 0%, #0A1628 100%)" }}
-          />
+      <nav className="px-10 py-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-[var(--accent)] flex items-center justify-center">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+          </div>
+          <div>
+            <div className="text-[var(--text)] text-lg font-bold tracking-tight">
+              Orion<span className="text-[var(--accent)]">.</span>
+            </div>
+            <div className="text-[9px] text-[var(--text4)] font-mono uppercase tracking-[2px]">
+              by EyeOn
+            </div>
+          </div>
         </div>
-
-        {/* Nav bar */}
-        <nav className="relative z-10 px-10 py-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent2)] flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-[var(--accent)]/20">
-              O
-            </div>
-            <div>
-              <div className="text-white text-lg font-bold tracking-wide">
-                Orion<span className="text-[var(--accent2)]">.</span>
-              </div>
-              <div className="text-[9px] text-white/30 font-mono uppercase tracking-[3px]">
-                Proposal Engine
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => dispatch({ type: "SET_VIEW", view: "proposals" })}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-[var(--text3)] hover:text-[var(--text)] hover:bg-[var(--surface2)] transition-all"
+          >
+            <FolderOpen size={14} />
+            My Proposals
+          </button>
+          {canProceed && (
             <button
-              onClick={() => dispatch({ type: "SET_VIEW", view: "proposals" })}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-all"
+              onClick={handleProceed}
+              className="flex items-center gap-2 px-5 py-[10px] rounded-lg text-xs font-semibold bg-[var(--accent)] text-white hover:bg-[var(--accent2)] transition-all"
             >
-              <FolderOpen size={14} />
-              My Proposals
+              Open Studio
+              <ArrowRight size={14} />
             </button>
-            {canProceed && (
-              <button
-                onClick={handleProceed}
-                className="flex items-center gap-2 px-5 py-[10px] rounded-xl text-xs font-semibold bg-gradient-to-r from-[var(--accent)] to-[var(--accent2)] text-white hover:brightness-110 transition-all shadow-lg shadow-[var(--accent)]/30"
-              >
-                Open Studio
-                <ArrowRight size={14} />
-              </button>
-            )}
-          </div>
-        </nav>
+          )}
+        </div>
+      </nav>
 
-        {/* Hero content */}
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-8 text-center -mt-10">
-          {/* Pill badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-[6px] rounded-full bg-white/[0.06] border border-white/[0.08] backdrop-blur-sm mb-8">
-            <Sparkles size={12} className="text-[var(--accent2)]" />
-            <span className="text-[11px] text-white/60 font-medium">
-              Powered by Claude AI &mdash; Built for Anaplan Partners
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* HERO — Clean, warm, Meridian-style                        */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <section className="pt-16 pb-20 px-8">
+        <div className="max-w-[820px] mx-auto text-center">
+          {/* Main headline — massive, bold, warm */}
+          <h1 className="text-[64px] leading-[1.06] font-bold text-[var(--navy)] tracking-[-2px] mb-6">
+            Your Anaplan proposal,{" "}
+            <span className="italic text-[var(--accent)]">
+              fully crafted.
             </span>
-          </div>
-
-          {/* Main headline */}
-          <h1 className="text-[56px] leading-[1.08] font-bold text-white tracking-[-1.5px] max-w-[800px] mb-6">
-            Win more deals with{" "}
-            <span className="bg-gradient-to-r from-[#2A9D8F] via-[#2A6B67] to-[#1B4D4A] bg-clip-text text-transparent">
-              AI-powered
-            </span>{" "}
-            proposals
           </h1>
 
           {/* Subheading */}
-          <p className="text-lg text-white/45 max-w-[520px] leading-[1.7] mb-10 font-light">
-            Transform RFP questions into compelling, differentiated Anaplan proposals in minutes &mdash; not days.
+          <p className="text-lg text-[var(--text3)] max-w-[560px] mx-auto leading-[1.7] mb-10">
+            Orion transforms RFP questions into compelling, differentiated
+            Anaplan proposals with full project costing and AI-powered
+            response generation.
           </p>
 
-          {/* CTA buttons */}
-          <div className="flex items-center gap-4 mb-16">
-            <button
-              onClick={handleScrollToIntake}
-              className="group flex items-center gap-3 px-8 py-4 rounded-xl text-sm font-semibold bg-gradient-to-r from-[var(--accent)] to-[var(--accent2)] text-white hover:brightness-110 transition-all shadow-xl shadow-[var(--accent)]/25 hover:shadow-[var(--accent)]/40 hover:-translate-y-[1px]"
-            >
-              Start New Proposal
-              <ArrowRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
-            </button>
-            <button
-              onClick={() => dispatch({ type: "SET_VIEW", view: "proposals" })}
-              className="flex items-center gap-2 px-6 py-4 rounded-xl text-sm font-medium text-white/60 border border-white/[0.1] hover:bg-white/[0.04] hover:text-white/80 hover:border-white/[0.18] transition-all"
-            >
-              <FolderOpen size={15} />
-              Load Existing
-            </button>
-          </div>
-
-          {/* Stats bar */}
-          <div className="flex items-center gap-[1px] rounded-2xl overflow-hidden bg-white/[0.03] border border-white/[0.06] backdrop-blur-md">
-            {[
-              { value: "6", label: "RFP Categories", icon: FileText },
-              { value: "50+", label: "KB Entries", icon: Globe2 },
-              { value: "3", label: "Export Formats", icon: BarChart3 },
-              { value: "5", label: "AI Agents", icon: Zap },
-            ].map((stat, i) => (
-              <div
-                key={stat.label}
-                className={`flex items-center gap-3 px-6 py-4 ${
-                  i > 0 ? "border-l border-white/[0.06]" : ""
-                }`}
-              >
-                <stat.icon size={14} className="text-[var(--accent2)]" />
-                <div className="text-left">
-                  <div className="text-white font-bold text-sm">{stat.value}</div>
-                  <div className="text-[10px] text-white/35 font-mono uppercase tracking-wider">
-                    {stat.label}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div className="relative z-10 flex justify-center pb-8">
+          {/* Single CTA */}
           <button
             onClick={handleScrollToIntake}
-            className="flex flex-col items-center gap-1 text-white/20 hover:text-white/40 transition-all animate-bounce"
+            className="group inline-flex items-center gap-3 px-8 py-4 rounded-lg text-sm font-semibold bg-[var(--accent)] text-white hover:bg-[var(--accent2)] transition-all"
           >
-            <span className="text-[9px] font-mono uppercase tracking-[2px]">
-              Begin
-            </span>
-            <ChevronDown size={16} />
+            Start New Proposal
+            <ArrowRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════ */}
-      {/* FEATURES STRIP — Capability highlights                    */}
+      {/* PRODUCT PREVIEW — Embedded app mockup                     */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <section className="bg-[var(--navy)] border-y border-white/[0.05]">
-        <div className="max-w-[1100px] mx-auto px-10 py-16">
-          <div className="text-center mb-12">
-            <h2 className="text-xl font-bold text-white mb-2">
-              Everything you need to win
-            </h2>
-            <p className="text-sm text-white/40">
-              End-to-end proposal generation from intake to export
-            </p>
-          </div>
+      <section className="px-8 pb-24">
+        <div className="max-w-[960px] mx-auto">
+          <div className="bg-white rounded-2xl border border-[var(--border2)] shadow-[var(--sh-lg)] overflow-hidden">
+            {/* Mock app header bar */}
+            <div className="flex items-center gap-3 px-5 py-3 border-b border-[var(--border)] bg-[var(--surface)]">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-md bg-[var(--accent)] flex items-center justify-center">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                    <polyline points="2 17 12 22 22 17" />
+                    <polyline points="2 12 12 17 22 12" />
+                  </svg>
+                </div>
+                <span className="text-xs font-semibold text-[var(--text)]">Orion.</span>
+                <span className="text-[10px] text-[var(--text4)]">|</span>
+                <span className="text-[11px] text-[var(--text3)]">Acme Corp &mdash; FP&amp;A Implementation</span>
+              </div>
+              <div className="ml-auto text-[10px] font-mono text-[var(--text4)]">
+                Last generated 2h ago
+              </div>
+            </div>
 
-          <div className="grid grid-cols-4 gap-6">
+            {/* Mock app tabs */}
+            <div className="flex items-center gap-0 px-5 border-b border-[var(--border)] bg-[var(--surface)]">
+              {["Proposal Studio", "Costing", "Differentiators", "Export"].map((tab, i) => (
+                <div
+                  key={tab}
+                  className={`px-4 py-2.5 text-[11px] font-medium ${
+                    i === 0
+                      ? "text-[var(--accent)] border-b-2 border-[var(--accent)]"
+                      : "text-[var(--text4)]"
+                  }`}
+                >
+                  {tab}
+                </div>
+              ))}
+            </div>
+
+            {/* Mock three-panel content */}
+            <div className="grid grid-cols-[200px_1fr_240px] h-[340px]">
+              {/* Outline sidebar */}
+              <div className="bg-[var(--navy)] p-4 space-y-1.5 overflow-hidden">
+                <div className="text-[9px] font-mono text-white/30 uppercase tracking-wider mb-3">
+                  Sections
+                </div>
+                {[
+                  { cat: "Technical", color: "#7B6FAB", count: 4 },
+                  { cat: "Functional", color: "#5D7FA3", count: 3 },
+                  { cat: "Methodology", color: "#7A9461", count: 3 },
+                  { cat: "Team", color: "#A68458", count: 2 },
+                  { cat: "Pricing", color: "#B26B58", count: 2 },
+                  { cat: "References", color: "#B09558", count: 2 },
+                ].map((s) => (
+                  <div key={s.cat} className="flex items-center gap-2 px-2.5 py-[7px] rounded-md bg-white/[0.04]">
+                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                    <span className="text-[10px] text-white/60 flex-1">{s.cat}</span>
+                    <span className="text-[9px] font-mono text-white/25">{s.count}</span>
+                  </div>
+                ))}
+                <div className="pt-3 mt-3 border-t border-white/[0.06]">
+                  <div className="flex justify-between px-2.5">
+                    <span className="text-[9px] text-white/25 font-mono">Total</span>
+                    <span className="text-[11px] font-bold text-white/50">16</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Editor panel */}
+              <div className="p-5 border-x border-[var(--border)] overflow-hidden">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-[#7B6FAB]" />
+                  <span className="text-[9px] font-mono text-[var(--text4)] uppercase tracking-wider">Technical</span>
+                </div>
+                <div className="text-sm font-semibold text-[var(--text)] mb-3">
+                  Q1. How does your platform handle data security?
+                </div>
+                <div className="space-y-2 text-[11px] leading-[1.7] text-[var(--text3)]">
+                  <p>
+                    Anaplan employs a multi-layered security architecture that meets enterprise
+                    requirements across data protection, access control, and compliance certification...
+                  </p>
+                  <p>
+                    The platform achieves SOC 2 Type II, ISO 27001, and GDPR compliance with
+                    AES-256 encryption at rest and TLS 1.3 in transit...
+                  </p>
+                </div>
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-[9px] font-mono text-[var(--text4)]">247 words</span>
+                  <span className="text-[9px] text-[var(--text4)]">&middot;</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--pos-pale)] text-[9px] font-semibold text-[var(--pos)]">
+                    92/100
+                  </span>
+                </div>
+              </div>
+
+              {/* Context panel */}
+              <div className="p-4 bg-[var(--surface2)] overflow-hidden">
+                <div className="text-[9px] font-mono text-[var(--text4)] uppercase tracking-wider mb-3">
+                  KB Matches
+                </div>
+                {[
+                  { title: "Security & Compliance", score: "0.94" },
+                  { title: "Data Encryption", score: "0.87" },
+                  { title: "Access Control", score: "0.82" },
+                ].map((kb) => (
+                  <div key={kb.title} className="mb-2 p-2.5 rounded-lg bg-white border border-[var(--border)]">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-medium text-[var(--text2)]">{kb.title}</span>
+                      <span className="text-[9px] font-mono text-[var(--accent)]">{kb.score}</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="mt-4 text-[9px] font-mono text-[var(--text4)] uppercase tracking-wider mb-2">
+                  AI Analysis
+                </div>
+                <div className="p-2.5 rounded-lg bg-[var(--accent-pale)] border border-[var(--accent-bd)]">
+                  <p className="text-[10px] text-[var(--accent)] leading-[1.5]">
+                    Response covers all key security dimensions. Consider adding specific
+                    EyeOn implementation guardrails...
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* FEATURES — Clean text descriptions, Meridian-style        */}
+      {/* ═══════════════════════════════════════════════════════════ */}
+      <section className="px-8 pb-24">
+        <div className="max-w-[820px] mx-auto">
+          <div className="grid grid-cols-3 gap-12">
             {[
               {
+                icon: MessageSquare,
+                title: "Respond",
+                desc: "Multi-agent AI generates unique, client-tailored responses per question with tone and length controls",
+              },
+              {
+                icon: DollarSign,
+                title: "Cost",
+                desc: "Rate cards, effort matrices, Anaplan licensing, and margin analysis in a complete commercial model",
+              },
+              {
                 icon: FileText,
-                title: "Multi-Format Input",
-                desc: "Paste, PDF, Excel, CSV — any format, instant parsing with auto-categorization",
-                color: "#5D7FA3",
-              },
-              {
-                icon: Zap,
-                title: "AI Response Engine",
-                desc: "Multi-agent orchestration generates unique, client-tailored responses per question",
-                color: "#2A9D8F",
-              },
-              {
-                icon: BarChart3,
-                title: "Full Costing Engine",
-                desc: "Rate cards, effort matrices, licensing, margin analysis — complete commercial model",
-                color: "#BF801E",
-              },
-              {
-                icon: Shield,
-                title: "Anaplan Expertise",
-                desc: "Deep embedded KB covering 6 modules, CloudWorks, Polaris, PlanIQ, and 50+ accelerators",
-                color: "#7B6FAB",
+                title: "Export",
+                desc: "Download formatted DOCX proposals, XLSX pricing workbooks, and PDF reports ready to submit",
               },
             ].map((feat) => (
-              <div
-                key={feat.title}
-                className="group relative bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6 hover:bg-white/[0.05] hover:border-white/[0.1] transition-all duration-300 hover:-translate-y-1"
-              >
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110"
-                  style={{ background: `${feat.color}20` }}
-                >
-                  <feat.icon size={18} style={{ color: feat.color }} />
-                </div>
-                <h3 className="text-sm font-semibold text-white mb-2">
+              <div key={feat.title}>
+                <feat.icon size={20} className="text-[var(--accent)] mb-3" />
+                <h3 className="text-sm font-bold text-[var(--text)] mb-2">
                   {feat.title}
                 </h3>
-                <p className="text-[12px] text-white/40 leading-[1.6]">
+                <p className="text-[13px] text-[var(--text3)] leading-[1.65]">
                   {feat.desc}
                 </p>
               </div>
@@ -250,48 +279,39 @@ export default function IntakePage() {
       {/* ═══════════════════════════════════════════════════════════ */}
       {/* INTAKE SECTION — The actual functional form                */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <section id="intake-section" className="scroll-mt-0">
-        {/* Section header with gradient transition */}
-        <div className="bg-gradient-to-b from-[var(--navy)] to-[var(--bg)] pt-16 pb-8 px-8">
-          <div className="max-w-[960px] mx-auto">
-            <div className="flex items-end justify-between">
-              <div>
-                <div className="inline-flex items-center gap-2 px-3 py-[5px] rounded-full bg-[var(--accent-pale)] border border-[var(--accent-bd)] mb-4">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent2)] animate-pulse" />
-                  <span className="text-[10px] font-mono font-semibold text-[var(--accent)] uppercase tracking-[1.5px]">
-                    New Proposal
-                  </span>
-                </div>
-                <h2 className="text-2xl font-bold text-[var(--text)] mb-1">
-                  Configure your proposal
-                </h2>
-                <p className="text-sm text-[var(--text3)]">
-                  Add RFP questions and client context. Orion handles the rest.
-                </p>
+      <section id="intake-section" className="border-t border-[var(--border)] pt-16 pb-16 px-8">
+        <div className="max-w-[960px] mx-auto">
+          {/* Section header */}
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <div className="text-[10px] font-mono font-semibold text-[var(--accent)] uppercase tracking-[1.5px] mb-2">
+                New Proposal
               </div>
-              <button
-                onClick={handleProceed}
-                disabled={!canProceed}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-semibold bg-gradient-to-r from-[var(--accent)] to-[var(--accent2)] text-white hover:brightness-110 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg shadow-[var(--accent)]/15 disabled:shadow-none"
-              >
-                Open Proposal Studio
-                <ArrowRight size={14} />
-              </button>
+              <h2 className="text-2xl font-bold text-[var(--text)] mb-1">
+                Configure your proposal
+              </h2>
+              <p className="text-sm text-[var(--text3)]">
+                Add RFP questions and client context. Orion handles the rest.
+              </p>
             </div>
+            <button
+              onClick={handleProceed}
+              disabled={!canProceed}
+              className="flex items-center gap-2 px-6 py-3 rounded-lg text-xs font-semibold bg-[var(--accent)] text-white hover:bg-[var(--accent2)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              Open Proposal Studio
+              <ArrowRight size={14} />
+            </button>
           </div>
-        </div>
 
-        {/* Form content */}
-        <div className="max-w-[960px] mx-auto px-8 pb-16">
+          {/* Form content */}
           <div className="grid grid-cols-[1fr_340px] gap-8">
             {/* Left Column: Questions */}
             <div className="space-y-6">
               {/* Add Questions Card */}
-              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--sh-sm)] hover:shadow-[var(--sh)] transition-shadow">
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-[var(--sh-sm)]">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-7 h-7 rounded-lg bg-[var(--accent-pale)] flex items-center justify-center">
-                    <FileText size={14} className="text-[var(--accent)]" />
-                  </div>
+                  <FileText size={15} className="text-[var(--accent)]" />
                   <h3 className="text-sm font-semibold text-[var(--text)]">
                     Add Questions
                   </h3>
@@ -301,7 +321,7 @@ export default function IntakePage() {
 
               {/* Question List */}
               {questions.length > 0 && (
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--sh-sm)] hover:shadow-[var(--sh)] transition-shadow">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-[var(--sh-sm)]">
                   <QuestionList />
                 </div>
               )}
@@ -310,16 +330,14 @@ export default function IntakePage() {
             {/* Right Column: Client Context + Summary */}
             <div className="space-y-6">
               {/* Client Context Card */}
-              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--sh-sm)] hover:shadow-[var(--sh)] transition-shadow">
+              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-[var(--sh-sm)]">
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="w-7 h-7 rounded-lg bg-[var(--accent-pale)] flex items-center justify-center">
-                    <Globe2 size={14} className="text-[var(--accent)]" />
-                  </div>
+                  <Globe2 size={15} className="text-[var(--accent)]" />
                   <h3 className="text-sm font-semibold text-[var(--text)]">
                     Client Context
                   </h3>
                 </div>
-                <p className="text-[11px] text-[var(--text4)] mb-4 ml-9">
+                <p className="text-[11px] text-[var(--text4)] mb-4 ml-[23px]">
                   Tailors AI responses to the client
                 </p>
                 <ClientContextForm />
@@ -327,7 +345,7 @@ export default function IntakePage() {
 
               {/* Summary Card */}
               {questions.length > 0 && (
-                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-[var(--sh-sm)] hover:shadow-[var(--sh)] transition-shadow">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 shadow-[var(--sh-sm)]">
                   <h3 className="text-sm font-semibold text-[var(--text)] mb-4">
                     Intake Summary
                   </h3>
@@ -336,16 +354,13 @@ export default function IntakePage() {
                     {sections.map((s) => (
                       <div key={s.category} className="flex items-center gap-3">
                         <div
-                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{
-                            background: s.color,
-                            boxShadow: `0 0 0 2px var(--surface), 0 0 0 4px ${s.color}30`,
-                          }}
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ background: s.color }}
                         />
-                        <span className="text-xs text-[var(--text2)] flex-1 capitalize font-medium">
+                        <span className="text-xs text-[var(--text2)] flex-1 capitalize">
                           {s.category}
                         </span>
-                        <span className="font-mono text-[10px] font-bold text-[var(--text3)]">
+                        <span className="font-mono text-[10px] font-semibold text-[var(--text3)]">
                           {s.total}
                         </span>
                       </div>
@@ -354,24 +369,17 @@ export default function IntakePage() {
 
                   <div className="pt-4 border-t border-[var(--border)]">
                     <div className="flex justify-between items-baseline">
-                      <span className="text-xs text-[var(--text3)] font-medium">
-                        Total Questions
-                      </span>
-                      <span className="font-mono text-2xl font-bold text-[var(--accent)]">
+                      <span className="text-xs text-[var(--text3)]">Total</span>
+                      <span className="font-mono text-lg font-bold text-[var(--text)]">
                         {questions.length}
                       </span>
                     </div>
                     {client.companyName && (
-                      <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--accent-pale)]">
-                        <Globe2 size={12} className="text-[var(--accent)] flex-shrink-0" />
-                        <span className="text-[11px] text-[var(--accent)]">
-                          <strong>{client.companyName}</strong>
-                          {client.industry && (
-                            <span className="text-[var(--accent)]/70">
-                              {" "}&middot; {client.industry}
-                            </span>
-                          )}
-                        </span>
+                      <div className="mt-2 text-[11px] text-[var(--text4)]">
+                        Client: <span className="text-[var(--text2)] font-medium">{client.companyName}</span>
+                        {client.industry && (
+                          <span> &middot; {client.industry}</span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -382,9 +390,8 @@ export default function IntakePage() {
               {canProceed && (
                 <button
                   onClick={handleProceed}
-                  className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl text-sm font-semibold bg-gradient-to-r from-[var(--accent)] to-[var(--accent2)] text-white hover:brightness-110 transition-all shadow-lg shadow-[var(--accent)]/20 hover:shadow-[var(--accent)]/35 hover:-translate-y-[1px]"
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-sm font-semibold bg-[var(--accent)] text-white hover:bg-[var(--accent2)] transition-all"
                 >
-                  <Sparkles size={16} />
                   Open Proposal Studio
                   <ArrowRight size={16} />
                 </button>
@@ -397,18 +404,18 @@ export default function IntakePage() {
       {/* ═══════════════════════════════════════════════════════════ */}
       {/* FOOTER                                                    */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <footer className="bg-[var(--navy)] border-t border-white/[0.05] px-8 py-8">
+      <footer className="border-t border-[var(--border)] px-8 py-6">
         <div className="max-w-[960px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-md bg-[var(--accent)] flex items-center justify-center text-white text-[10px] font-bold">
-              O
-            </div>
-            <span className="text-xs text-white/30 font-mono">
-              Orion v2.0 &mdash; Anaplan Proposal Engine
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-[var(--text3)]">
+              Orion
+            </span>
+            <span className="text-[10px] text-[var(--text4)] font-mono">
+              by EyeOn
             </span>
           </div>
-          <div className="text-[10px] text-white/20 font-mono uppercase tracking-wider">
-            Confidential &mdash; EyeOn B.V.
+          <div className="text-[10px] text-[var(--text4)] font-mono uppercase tracking-wider">
+            Confidential
           </div>
         </div>
       </footer>
