@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { CATEGORY_CONFIG } from "@/types";
 import type { ProposalProject, RfpQuestion } from "@/types";
 import { useAppDispatch, useAppState } from "@/lib/store";
@@ -11,8 +11,11 @@ import {
   FolderOpen,
   FileDown,
   FileText,
+  Presentation,
+  Loader2,
 } from "lucide-react";
 import { exportProposalPdf } from "@/lib/export/generate-pdf";
+import { getUploadedDocs } from "./ContextPanel";
 
 interface OutlinePanelProps {
   project: ProposalProject;
@@ -43,6 +46,13 @@ export default function OutlinePanel({
   const dispatch = useAppDispatch();
   const { clarification, client, questions } = useAppState();
 
+  const [deckStatus, setDeckStatus] = useState<
+    "idle" | "generating" | "error"
+  >("idle");
+  const [deckError, setDeckError] = useState("");
+  const [deckProgress, setDeckProgress] = useState(0);
+  const [deckStage, setDeckStage] = useState("");
+
   const handleExportPdf = useCallback(async () => {
     const clientName = client.companyName || "Client";
     const rfpTitle = client.industry
@@ -62,6 +72,139 @@ export default function OutlinePanel({
 
     await exportProposalPdf(questions, clientName, rfpTitle, costSummary);
   }, [client, questions, clarification]);
+
+  const handleExportDeck = useCallback(async () => {
+    setDeckStatus("generating");
+    setDeckError("");
+    setDeckProgress(0);
+    setDeckStage("Preparing...");
+
+    try {
+      // Build the request payload — supports questions, documents, or both
+      const questionsWithResponses = questions.filter((q) => q.response?.content);
+      const uploadedDocs = getUploadedDocs();
+
+      const payload: Record<string, unknown> = {
+        client: {
+          companyName: client.companyName || "Client",
+          industry: client.industry || "Technology",
+          size: client.size,
+          painPoints: client.painPoints
+            ? client.painPoints.split(",").map((s: string) => s.trim())
+            : undefined,
+        },
+        engagementName: client.industry
+          ? `${client.companyName} — ${client.industry}`
+          : undefined,
+      };
+
+      // Include questions if available
+      if (questionsWithResponses.length > 0) {
+        payload.questions = questionsWithResponses.map((q) => ({
+          id: q.id,
+          text: q.text,
+          category: q.category,
+          response: q.response!.content,
+          wordCount: q.response!.wordCount || q.response!.content.split(/\s+/).length,
+          score: q.response!.qualityScore,
+        }));
+      }
+
+      // Include uploaded documents if available
+      if (uploadedDocs.length > 0) {
+        payload.documents = uploadedDocs.map((d) => ({
+          name: d.name,
+          content: d.content,
+          wordCount: d.wordCount,
+        }));
+      }
+
+      const res = await fetch("/api/export/deck", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok || !res.body) {
+        const text = await res.text();
+        let msg = `HTTP ${res.status}`;
+        try { msg = JSON.parse(text).error || msg; } catch { /* ok */ }
+        throw new Error(msg);
+      }
+
+      // Read SSE stream
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // keep incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const raw = line.slice(6).trim();
+          if (!raw) continue;
+
+          try {
+            const evt = JSON.parse(raw);
+
+            if (evt.type === "progress") {
+              setDeckProgress(evt.percent || 0);
+              setDeckStage(evt.message || evt.stage || "");
+            } else if (evt.type === "complete") {
+              setDeckProgress(100);
+              setDeckStage(`Done — ${evt.slideCount} slides`);
+
+              // Decode base64 and trigger download
+              const byteChars = atob(evt.data);
+              const byteArray = new Uint8Array(byteChars.length);
+              for (let i = 0; i < byteChars.length; i++) {
+                byteArray[i] = byteChars.charCodeAt(i);
+              }
+              const blob = new Blob([byteArray], {
+                type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+              });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = evt.filename || "proposal.pptx";
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+
+              setTimeout(() => {
+                setDeckStatus("idle");
+                setDeckProgress(0);
+                setDeckStage("");
+              }, 2000);
+            } else if (evt.type === "error") {
+              throw new Error(evt.message || "Generation failed");
+            }
+          } catch (parseErr) {
+            // If it's a re-thrown error from "error" event, propagate it
+            if (parseErr instanceof Error && parseErr.message !== "Unexpected end of JSON input") {
+              throw parseErr;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Deck export error:", err);
+      setDeckError(err instanceof Error ? err.message : "Unknown error");
+      setDeckStatus("error");
+      setDeckProgress(0);
+      setTimeout(() => {
+        setDeckStatus("idle");
+        setDeckStage("");
+      }, 5000);
+    }
+  }, [questions, client]);
 
   return (
     <aside className="w-[260px] min-w-[260px] bg-[var(--navy)] text-white/70 flex flex-col overflow-hidden">
@@ -139,8 +282,8 @@ export default function OutlinePanel({
           Proposals & Templates
         </button>
 
-        {/* Export buttons */}
-        {questions.some((q) => q.response) && (
+        {/* Export buttons — show when we have responses OR uploaded docs */}
+        {(questions.some((q) => q.response) || getUploadedDocs().length > 0) && (
           <div className="pt-2 border-t border-white/[0.06]">
             <div className="font-mono text-[8px] text-white/20 uppercase tracking-[2px] mb-2">
               Export
@@ -152,6 +295,81 @@ export default function OutlinePanel({
               <FileDown size={13} />
               Export PDF
             </button>
+            <button
+              onClick={handleExportDeck}
+              disabled={deckStatus === "generating"}
+              className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${
+                deckStatus === "generating"
+                  ? "bg-[var(--accent)]/20 text-[var(--accent2)] cursor-wait"
+                  : deckStatus === "error"
+                  ? "bg-red-500/10 text-red-400"
+                  : "bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
+              }`}
+            >
+              {deckStatus === "generating" ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Presentation size={13} />
+              )}
+              {deckStatus === "generating"
+                ? "Generating Deck..."
+                : deckStatus === "error"
+                ? "Deck Error"
+                : "Export Deck"}
+            </button>
+            {/* Deck generation progress bar */}
+            {deckStatus === "generating" && (
+              <div className="mt-2 px-1">
+                <div className="h-1.5 bg-white/[0.08] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[var(--accent2)] rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${deckProgress}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-[9px] text-white/40 truncate max-w-[180px]">
+                    {deckStage}
+                  </span>
+                  <span className="text-[9px] font-mono text-white/30 ml-1 shrink-0">
+                    {deckProgress}%
+                  </span>
+                </div>
+                {/* Stage dots */}
+                <div className="flex items-center gap-1.5 mt-2">
+                  {[
+                    { label: "Prep", threshold: 5 },
+                    { label: "Outline", threshold: 15 },
+                    { label: "Content", threshold: 45 },
+                    { label: "Render", threshold: 75 },
+                    { label: "Done", threshold: 100 },
+                  ].map((step) => (
+                    <div key={step.label} className="flex items-center gap-1">
+                      <div
+                        className={`w-[5px] h-[5px] rounded-full transition-colors duration-300 ${
+                          deckProgress >= step.threshold
+                            ? "bg-[var(--accent2)]"
+                            : "bg-white/[0.12]"
+                        }`}
+                      />
+                      <span
+                        className={`text-[7px] font-mono uppercase tracking-wider transition-colors duration-300 ${
+                          deckProgress >= step.threshold
+                            ? "text-white/50"
+                            : "text-white/15"
+                        }`}
+                      >
+                        {step.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {deckStatus === "error" && deckError && (
+              <div className="px-3 text-[9px] text-red-400/70 mt-1">
+                {deckError}
+              </div>
+            )}
           </div>
         )}
       </div>
