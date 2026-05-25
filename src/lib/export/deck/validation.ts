@@ -323,24 +323,47 @@ const QuoteCalloutBodySchema = z.object({
 });
 
 /**
- * Use z.union instead of z.discriminatedUnion because several body schemas
- * use z.preprocess() at the top level or on nested fields, which hides the
- * discriminator from Zod's introspection. z.union tries each variant in
- * order — fine for AI output validation (not a hot path).
+ * Manual pattern dispatch instead of z.union / z.discriminatedUnion.
+ * z.union gives useless "Invalid input" errors when no variant matches,
+ * and z.discriminatedUnion can't see through z.preprocess wrappers.
+ * This reads the `pattern` field and routes directly to the correct schema,
+ * giving clear error messages per pattern type.
  */
-const SlideBodySchema = z.union([
-  CoverBodySchema,
-  WaterfallBodySchema,
-  GatedFlowBodySchema,
-  PyramidBodySchema,
-  StaircaseBodySchema,
-  ArchitectureFlowBodySchema,
-  ContentCardsBodySchema,
-  ComparisonMatrixBodySchema,
-  TimelineBodySchema,
-  MetricsDashboardBodySchema,
-  QuoteCalloutBodySchema,
-]);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const PATTERN_SCHEMAS: Record<string, z.ZodType<any>> = {
+  "cover": CoverBodySchema,
+  "waterfall": WaterfallBodySchema,
+  "gated-flow": GatedFlowBodySchema,
+  "pyramid": PyramidBodySchema,
+  "staircase": StaircaseBodySchema,
+  "architecture-flow": ArchitectureFlowBodySchema,
+  "content-cards": ContentCardsBodySchema,
+  "comparison-matrix": ComparisonMatrixBodySchema,
+  "timeline": TimelineBodySchema,
+  "metrics-dashboard": MetricsDashboardBodySchema,
+  "quote-callout": QuoteCalloutBodySchema,
+};
+
+const SlideBodySchema = z.any().transform((val, ctx) => {
+  const pattern = val?.pattern;
+  if (!pattern || typeof pattern !== "string") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Missing or invalid 'pattern' field on slide body" });
+    return z.NEVER;
+  }
+  const schema = PATTERN_SCHEMAS[pattern];
+  if (!schema) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown slide pattern: "${pattern}". Expected one of: ${Object.keys(PATTERN_SCHEMAS).join(", ")}` });
+    return z.NEVER;
+  }
+  const result = schema.safeParse(val);
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      ctx.addIssue(issue);
+    }
+    return z.NEVER;
+  }
+  return result.data;
+});
 
 const SlideContentSchema = z.object({
   id: z.string(),

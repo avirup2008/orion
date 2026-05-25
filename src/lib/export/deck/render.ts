@@ -104,6 +104,16 @@ async function generateContent(
 
   const result = validateContent(parsed);
   if (!result.success) {
+    // Log diagnostic info about what Claude returned
+    try {
+      const slides = (parsed as Record<string, unknown>)?.slides;
+      if (Array.isArray(slides)) {
+        console.error("Slide bodies received from AI:", slides.map((s: Record<string, unknown>, i: number) => {
+          const body = s?.body as Record<string, unknown>;
+          return `[${i}] pattern=${body?.pattern}, keys=${body ? Object.keys(body).join(",") : "null"}`;
+        }).join(" | "));
+      }
+    } catch { /* diagnostic only */ }
     const issues = result.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("; ");
