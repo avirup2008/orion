@@ -247,14 +247,51 @@ const ContentCardsBodySchema = z.object({
 
 const ComparisonMatrixBodySchema = z.object({
   pattern: z.literal("comparison-matrix"),
-  headers: z.array(z.string()).min(2),
-  rows: z.array(z.object({
-    label: z.string(),
-    cells: z.array(z.object({
-      text: z.string().default(""),
-      highlight: z.boolean().optional(),
-    })),
-  })).min(1),
+  headers: z.preprocess(
+    (val) => {
+      if (!Array.isArray(val)) return val;
+      return val.map((h) => typeof h === "string" ? h : String(h ?? ""));
+    },
+    z.array(z.string()).min(2),
+  ),
+  rows: z.preprocess(
+    (val) => {
+      if (!Array.isArray(val)) return val;
+      return val.map((row) => {
+        if (row && typeof row === "object") {
+          const r = row as Record<string, unknown>;
+          // Coerce label from alternate field names
+          const label = r.label ?? r.name ?? r.title ?? r.category ?? r.row ?? r.feature ?? "";
+          // Coerce cells from alternate field names
+          let cells = r.cells ?? r.values ?? r.columns ?? r.data ?? [];
+          // If cells are strings, wrap them in {text} objects
+          if (Array.isArray(cells)) {
+            cells = (cells as unknown[]).map((c) => {
+              if (typeof c === "string") return { text: c, highlight: false };
+              if (typeof c === "boolean") return { text: c ? "✓" : "✗", highlight: c };
+              if (c && typeof c === "object") {
+                const co = c as Record<string, unknown>;
+                return {
+                  text: co.text ?? co.value ?? co.content ?? String(co.label ?? ""),
+                  highlight: co.highlight ?? co.selected ?? co.active ?? false,
+                };
+              }
+              return { text: String(c ?? ""), highlight: false };
+            });
+          }
+          return { label: String(label), cells };
+        }
+        return row;
+      });
+    },
+    z.array(z.object({
+      label: z.string(),
+      cells: z.array(z.object({
+        text: z.string().default(""),
+        highlight: z.boolean().optional(),
+      })),
+    })).min(1),
+  ),
   footer: z.string().optional(),
 });
 
