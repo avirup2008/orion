@@ -4,6 +4,11 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { KbMatch, PastProposal, RfpQuestion } from "@/types";
 import { useAppState } from "@/lib/store";
 import type { ScoreResult } from "@/app/api/score/route";
+import CompetitiveIntelPanel from "./CompetitiveIntelPanel";
+import ComplianceChecklistPanel from "./ComplianceChecklistPanel";
+import ResponseLibraryPanel from "./ResponseLibraryPanel";
+import IssuerResearchPanel from "./IssuerResearchPanel";
+import HumanTasksPanel from "./HumanTasksPanel";
 import {
   Loader2,
   FileUp,
@@ -20,7 +25,7 @@ interface ContextPanelProps {
   pastProposals: PastProposal[];
 }
 
-type Tab = "kb" | "past" | "scoring" | "docs";
+type Tab = "kb" | "past" | "scoring" | "docs" | "intel" | "checklist" | "library" | "research" | "tasks";
 
 // ── RAG document store (in-memory for session) ──
 interface UploadedDoc {
@@ -59,10 +64,15 @@ export default function ContextPanel({
   }, [activeQuestionId]);
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "kb", label: "KB Matches" },
-    { id: "past", label: "Past Answers" },
-    { id: "scoring", label: "Scoring" },
-    { id: "docs", label: "RAG Docs" },
+    { id: "kb", label: "KB" },
+    { id: "scoring", label: "Score" },
+    { id: "intel", label: "Intel" },
+    { id: "checklist", label: "Checklist" },
+    { id: "library", label: "Library" },
+    { id: "research", label: "Research" },
+    { id: "tasks", label: "Tasks" },
+    { id: "past", label: "Past" },
+    { id: "docs", label: "Docs" },
   ];
 
   // ── Score current response ──
@@ -406,6 +416,38 @@ export default function ContextPanel({
               </div>
             )}
           </>
+        )}
+
+        {/* ── Competitive Intel Tab ── */}
+        {activeTab === "intel" && (
+          <CompetitiveIntelPanel questions={questions} />
+        )}
+
+        {/* ── Compliance Checklist Tab ── */}
+        {activeTab === "checklist" && (
+          <ComplianceChecklistPanel questions={questions} />
+        )}
+
+        {/* ── Response Library Tab ── */}
+        {activeTab === "library" && (
+          <ResponseLibraryPanel />
+        )}
+
+        {/* ── Issuer Research Tab ── */}
+        {activeTab === "research" && (
+          <IssuerResearchPanel
+            clientName={client.companyName || "Unknown Client"}
+            industry={client.industry || ""}
+            questions={questions}
+          />
+        )}
+
+        {/* ── Human Tasks Tab ── */}
+        {activeTab === "tasks" && (
+          <HumanTasksPanel
+            questions={questions}
+            clientName={client.companyName || "Unknown Client"}
+          />
         )}
 
         {/* ── RAG Docs Tab ── */}

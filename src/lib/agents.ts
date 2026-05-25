@@ -24,6 +24,10 @@ export interface GenerateRequest {
     detectedModules: string[];
     answers: Record<string, string>; // clarification question id -> answer
   };
+  /** Markdown competitive intel injected from detectCompetitors() */
+  competitiveContext?: string;
+  /** Markdown issuer research injected from buildIssuerPromptContext() */
+  issuerContext?: string;
 }
 
 // ── Module helpers ──
@@ -146,7 +150,11 @@ ${engagementInfo}
 ${rateInfo}
 
 ## Industry Metrics (for reference)
-${industryMetrics}`;
+${industryMetrics}
+
+${req.competitiveContext ? `## Competitive Intelligence\n${req.competitiveContext}` : ""}
+
+${req.issuerContext ? `## Issuer Research & Intelligence\n${req.issuerContext}` : ""}`.replace(/\n{3,}/g, "\n\n");
 }
 
 // ── Per-question prompt builder ──

@@ -23,6 +23,9 @@ import {
   Send,
 } from "lucide-react";
 import { exportProposalDocx } from "@/lib/export/generate-docx";
+import { detectCompetitors, getCompetitiveContext } from "@/lib/competitive-intel";
+import { getIssuerIntel, buildIssuerPromptContext } from "@/lib/issuer-intel";
+import { saveSnippet, createSnippetId } from "@/lib/response-library";
 
 interface EditorPanelProps {
   question: RfpQuestion | null;
@@ -49,6 +52,7 @@ export default function EditorPanel({
   const [editText, setEditText] = useState("");
   const [showCustomPrompt, setShowCustomPrompt] = useState(false);
   const [customInstruction, setCustomInstruction] = useState("");
+  const [savedToLibrary, setSavedToLibrary] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const streamEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -68,6 +72,7 @@ export default function EditorPanel({
     setEditText("");
     setShowCustomPrompt(false);
     setCustomInstruction("");
+    setSavedToLibrary(false);
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
@@ -172,6 +177,17 @@ export default function EditorPanel({
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Build competitive intel context
+    const mentions = detectCompetitors(state.questions);
+    const competitiveContext = mentions.length > 0 ? getCompetitiveContext(mentions) : undefined;
+
+    // Build issuer research context
+    let issuerContext: string | undefined;
+    if (state.client.companyName) {
+      const intel = getIssuerIntel(state.client.companyName);
+      if (intel) issuerContext = buildIssuerPromptContext(intel);
+    }
+
     const reqBody: GenerateRequest = {
       questionId: question.id,
       questionText: question.text,
@@ -187,6 +203,8 @@ export default function EditorPanel({
         detectedModules: state.clarification.detectedModules,
         answers: state.clarification.answers,
       },
+      competitiveContext,
+      issuerContext,
     };
 
     try {
@@ -358,6 +376,26 @@ export default function EditorPanel({
     setIsEditing(false);
     setEditText("");
   }, []);
+
+  const handleSaveToLibrary = useCallback(() => {
+    if (!question?.response) return;
+    const wordCount = question.response.content.split(/\s+/).filter(Boolean).length;
+    saveSnippet({
+      id: createSnippetId(),
+      title: question.text.slice(0, 80),
+      content: question.response.content,
+      category: question.category,
+      tags: [question.category, state.client.industry].filter(Boolean),
+      sourceQuestion: question.text,
+      sourceClient: state.client.companyName || "",
+      wordCount,
+      qualityScore: question.response.qualityScore,
+      createdAt: new Date().toISOString(),
+      usedCount: 0,
+    });
+    setSavedToLibrary(true);
+    setTimeout(() => setSavedToLibrary(false), 2000);
+  }, [question, state.client]);
 
   // ── Export DOCX ──
   const handleExportDocx = useCallback(async () => {
@@ -677,6 +715,26 @@ export default function EditorPanel({
                 >
                   <MessageSquare className="w-3 h-3 inline -mt-px mr-1" />
                   Custom rewrite
+                </button>
+                <button
+                  onClick={handleSaveToLibrary}
+                  className={`font-mono text-[10px] px-3 py-[5px] rounded-md border transition-all ml-auto ${
+                    savedToLibrary
+                      ? "bg-[var(--pos-pale)] text-[var(--pos)] border-[var(--pos-bd)]"
+                      : "text-[var(--text4)] border-transparent hover:bg-[var(--accent-pale)] hover:text-[var(--accent)] hover:border-[var(--accent-bd)]"
+                  }`}
+                >
+                  {savedToLibrary ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 inline -mt-px mr-1" />
+                      Saved!
+                    </>
+                  ) : (
+                    <>
+                      <Paperclip className="w-3 h-3 inline -mt-px mr-1" />
+                      Save to Library
+                    </>
+                  )}
                 </button>
               </div>
             )}
