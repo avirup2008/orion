@@ -136,6 +136,7 @@ export default function OutlinePanel({
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let completed = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -157,6 +158,7 @@ export default function OutlinePanel({
               setDeckProgress(evt.percent || 0);
               setDeckStage(evt.message || evt.stage || "");
             } else if (evt.type === "complete") {
+              completed = true;
               setDeckProgress(100);
               setDeckStage(`Done — ${evt.slideCount} slides`);
 
@@ -193,6 +195,11 @@ export default function OutlinePanel({
             }
           }
         }
+      }
+
+      // Stream ended without a "complete" event — likely a serverless timeout
+      if (!completed) {
+        throw new Error("Connection lost — server may have timed out. Try again.");
       }
     } catch (err) {
       console.error("Deck export error:", err);
