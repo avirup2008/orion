@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Auth middleware.
+ * Auth proxy (Next.js 16 convention — renamed from middleware).
  * If ORION_PASSWORD is set, require the orion_session cookie.
  * If not set, allow all requests through (open access).
+ *
+ * API routes get 401 JSON; page routes get redirected to /login.
  */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const envPassword = process.env.ORION_PASSWORD;
 
   // If no password configured, skip auth entirely
@@ -29,7 +31,15 @@ export function middleware(req: NextRequest) {
   const session = req.cookies.get("orion_session");
 
   if (!session || session.value !== "authenticated") {
-    // Redirect to login
+    // API routes: return 401 JSON (don't redirect — breaks POST/SSE)
+    if (pathname.startsWith("/api/")) {
+      return Response.json(
+        { error: "Authentication required" },
+        { status: 401 },
+      );
+    }
+
+    // Page routes: redirect to login
     const loginUrl = new URL("/login", req.url);
     return NextResponse.redirect(loginUrl);
   }
