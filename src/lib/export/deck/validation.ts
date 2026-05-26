@@ -122,9 +122,20 @@ export const DeckOutlineSchema = z.preprocess(
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const o = val as Record<string, unknown>;
 
-      // Filter out incomplete sections from truncated output.
-      // A valid section needs both `label` (string) and `slides` (non-empty array).
+      // Pre-filter invalid slides from each section BEFORE checking section validity.
+      // This ensures sections whose only slides had invalid patterns get dropped.
       if (Array.isArray(o.sections)) {
+        for (const sec of o.sections as Record<string, unknown>[]) {
+          if (sec && typeof sec === "object" && Array.isArray(sec.slides)) {
+            sec.slides = (sec.slides as Record<string, unknown>[]).filter((s) =>
+              s && typeof s === "object" &&
+              typeof s.id === "string" &&
+              typeof s.pattern === "string" &&
+              VALID_PATTERN_SET.has(s.pattern as string),
+            );
+          }
+        }
+        // Now filter out incomplete/empty sections
         o.sections = (o.sections as Record<string, unknown>[]).filter((s) =>
           s && typeof s === "object" &&
           typeof s.label === "string" && s.label.length > 0 &&
