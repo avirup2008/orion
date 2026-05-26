@@ -93,6 +93,7 @@ Return a JSON object with this exact structure:
 }
 
 NOTE: Keep each slide object MINIMAL — id, pattern, governingThought, subtitle, insightBar only. Do NOT add extra fields. Brevity is critical.
+IMPORTANT: Only use the exact pattern names listed above. Do NOT invent patterns like "section-divider", "intro", "closing", "agenda", or any other unlisted name — they will be silently dropped.
 
 ## Rules
 1. First slide is always section "COVER" with a single "cover" pattern slide
