@@ -138,7 +138,7 @@ export async function generateOutline(
   const { system, user } = buildOutlinePrompt(req);
   // Haiku for outline — 3x faster, and outline is just structure (patterns,
   // sections, governing thoughts). Sonnet reserved for content where depth matters.
-  const raw = await callClaude(system, user, apiKey, 4096, "claude-3-5-haiku-20241022");
+  const raw = await callClaude(system, user, apiKey, 4096, "claude-haiku-4-20250414");
 
   let parsed: unknown;
   try {
