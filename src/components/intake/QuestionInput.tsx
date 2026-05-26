@@ -25,6 +25,7 @@ export default function QuestionInput() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewQuestions, setPreviewQuestions] = useState<RfpQuestion[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +76,7 @@ export default function QuestionInput() {
       }
 
       setError(null);
+      setSuccessMsg(null);
       setIsProcessing(true);
       setUploadedFileName(file.name);
 
@@ -91,6 +93,24 @@ export default function QuestionInput() {
           if (result.clientContext) {
             autoFillClientContext(result.clientContext);
           }
+
+          // For PDFs, auto-add to store — AI already curated the list
+          if (parsed.length === 0) {
+            setError("No requirements could be extracted from this PDF.");
+            setIsProcessing(false);
+            return;
+          }
+          const unique = deduplicateQuestions(existingQuestions, parsed);
+          if (unique.length === 0) {
+            setError("All extracted requirements are duplicates.");
+            setIsProcessing(false);
+            return;
+          }
+          dispatch({ type: "ADD_QUESTIONS", questions: unique });
+          setPreviewQuestions([]);
+          setSuccessMsg(`Added ${unique.length} requirements from PDF — ready to generate deck`);
+          setIsProcessing(false);
+          return;
         } else if (
           file.name.endsWith(".xlsx") ||
           file.name.endsWith(".xls") ||
@@ -243,6 +263,14 @@ export default function QuestionInput() {
       {error && (
         <div className="mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-[var(--r)] text-xs text-red-700">
           {error}
+        </div>
+      )}
+
+      {/* Success */}
+      {successMsg && !error && (
+        <div className="mt-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-[var(--r)] text-xs text-emerald-700 flex items-center gap-2">
+          <CheckCircle2 size={14} />
+          {successMsg}
         </div>
       )}
 
