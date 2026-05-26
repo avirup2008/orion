@@ -139,38 +139,36 @@ function buildOutlineUserMessage(req: DeckRequest): string {
   if (req.engagementName) parts.push(`Engagement: ${req.engagementName}`);
   if (req.modules?.length) parts.push(`Anaplan Modules: ${req.modules.join(", ")}`);
 
-  // Raw documents (RFP docs, scope docs, requirement specs)
+  // Raw documents — TRIMMED for outline (full docs sent to content phase)
   if (hasDocs) {
     parts.push(`\n## RFP Documents (${req.documents!.length} uploaded)`);
-    parts.push(`These are the raw RFP/scope documents. Analyze them to extract requirements, evaluation criteria, pain points, timeline constraints, and any specific questions or topics the client cares about.`);
+    parts.push(`Analyze these to extract requirements, evaluation criteria, pain points, and timeline constraints.`);
     req.documents!.forEach((doc) => {
-      parts.push(`\n### Document: ${doc.name} (${doc.wordCount} words)`);
-      // Trim very long docs to stay within token limits
-      const content = doc.content.length > 8000
-        ? doc.content.slice(0, 8000) + "\n\n[... document truncated for token limits ...]"
+      parts.push(`\n### ${doc.name} (${doc.wordCount} words)`);
+      // Outline only needs the first 4000 chars — full content goes to content phase
+      const content = doc.content.length > 4000
+        ? doc.content.slice(0, 4000) + "\n\n[... see full document in content phase ...]"
         : doc.content;
       parts.push(content);
     });
   }
 
-  // Structured Q&A (if available)
+  // Structured questions — LEAN format for outline (no duplicate Q/A)
   if (hasQuestions) {
-    parts.push(`\n## RFP Questions & Responses (${req.questions!.length} total)`);
+    // Group by category, send just the text — responses go to content phase
     const byCat = new Map<string, NonNullable<typeof req.questions>>();
     req.questions!.forEach((q) => {
       const cat = q.category || "general";
       if (!byCat.has(cat)) byCat.set(cat, []);
       byCat.get(cat)!.push(q);
     });
+
+    parts.push(`\n## RFP Requirements (${req.questions!.length} items)`);
     for (const [cat, qs] of byCat) {
-      parts.push(`\n### ${cat.toUpperCase()} (${qs.length} questions)`);
+      parts.push(`\n### ${cat.toUpperCase()} (${qs.length})`);
+      // For outline, just list the requirement text — no need for duplicate response
       qs.forEach((q) => {
-        parts.push(`- Q: ${q.text}`);
-        const summary = q.response.length > 300
-          ? q.response.slice(0, 300) + "..."
-          : q.response;
-        parts.push(`  A: ${summary}`);
-        if (q.score) parts.push(`  Score: ${q.score}/100`);
+        parts.push(`- ${q.text}`);
       });
     }
   }
@@ -183,16 +181,14 @@ function buildOutlineUserMessage(req: DeckRequest): string {
   if (req.costing) {
     parts.push(`\n## Costing Data`);
     parts.push(`Total: ${req.costing.currency} ${req.costing.totalCost.toLocaleString()}`);
-    parts.push(`Phases:`);
     req.costing.phases.forEach((p) => {
-      parts.push(`  - ${p.name}: ${p.weeks} weeks, ${req.costing!.currency} ${p.cost.toLocaleString()}`);
+      parts.push(`- ${p.name}: ${p.weeks}wk, ${req.costing!.currency} ${p.cost.toLocaleString()}`);
     });
-    parts.push(`Team Roles:`);
     req.costing.teamRoles.forEach((r) => {
-      parts.push(`  - ${r.role}: ${req.costing!.currency} ${r.rate}/day, ${r.days} days`);
+      parts.push(`- ${r.role}: ${r.days}d @ ${req.costing!.currency} ${r.rate}/d`);
     });
     if (req.costing.licensing) {
-      parts.push(`Licensing: ${req.costing.licensing.tier} — ${req.costing.currency} ${req.costing.licensing.annualCost}/year`);
+      parts.push(`Licensing: ${req.costing.licensing.tier} — ${req.costing.currency} ${req.costing.licensing.annualCost}/yr`);
     }
   }
 

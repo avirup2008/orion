@@ -40,6 +40,10 @@ async function callClaude(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      // 50s timeout — must complete before Vercel's 60s function limit
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 50_000);
+
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -53,7 +57,10 @@ async function callClaude(
           system,
           messages: [{ role: "user", content: user }],
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeout);
 
       // Rate limit — wait and retry
       if (res.status === 429) {
@@ -95,6 +102,14 @@ async function callClaude(
       return textBlock.text;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Abort (our 50s timeout) — don't retry, give clear message
+      if (lastError.name === "AbortError" || lastError.message.includes("aborted")) {
+        throw new Error(
+          "Claude took too long to respond (>50s). Try reducing slide count or simplifying input."
+        );
+      }
+
       // Network errors — retry
       if (
         attempt < MAX_RETRIES &&
