@@ -84,23 +84,50 @@ const PatternTypeSchema = z.enum([
 const SlideOutlineSchema = z.object({
   id: z.string(),
   pattern: PatternTypeSchema,
-  governingThought: z.string(),
+  governingThought: z.string().default(""),
   subtitle: z.string().default(""),
   insightBar: z.string().default(""),
   contentBrief: z.string().default(""),
 });
 
-const DeckSectionSchema = z.object({
-  label: z.string(),
-  slides: z.array(SlideOutlineSchema).min(1),
-});
+const DeckSectionSchema = z.preprocess(
+  (val) => {
+    // Filter out incomplete slides from truncated output
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const o = val as Record<string, unknown>;
+      if (Array.isArray(o.slides)) {
+        o.slides = (o.slides as Record<string, unknown>[]).filter((s) =>
+          s && typeof s === "object" &&
+          typeof s.id === "string" &&
+          typeof s.pattern === "string",
+        );
+      }
+    }
+    return val;
+  },
+  z.object({
+    label: z.string(),
+    slides: z.array(SlideOutlineSchema).min(1),
+  }),
+);
 
 export const DeckOutlineSchema = z.preprocess(
   (val) => {
-    // Auto-compute totalSlides if missing (truncated output)
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const o = val as Record<string, unknown>;
-      if (!o.totalSlides && Array.isArray(o.sections)) {
+
+      // Filter out incomplete sections from truncated output.
+      // A valid section needs both `label` (string) and `slides` (non-empty array).
+      if (Array.isArray(o.sections)) {
+        o.sections = (o.sections as Record<string, unknown>[]).filter((s) =>
+          s && typeof s === "object" &&
+          typeof s.label === "string" && s.label.length > 0 &&
+          Array.isArray(s.slides) && (s.slides as unknown[]).length > 0,
+        );
+      }
+
+      // Auto-compute totalSlides if missing (truncated output)
+      if (Array.isArray(o.sections)) {
         const sections = o.sections as Array<{ slides?: unknown[] }>;
         o.totalSlides = sections.reduce(
           (n, s) => n + (Array.isArray(s?.slides) ? s.slides.length : 0),
