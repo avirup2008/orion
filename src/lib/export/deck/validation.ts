@@ -682,60 +682,95 @@ function repairJSON(raw: string): string {
 }
 
 /**
- * Aggressive fallback repair: when standard repair fails, progressively
- * truncate from the error position backward to find the last parseable
- * JSON structure. Handles truncated literals, unescaped quotes, etc.
+ * Close a truncated JSON fragment by fixing unterminated strings,
+ * removing partial tokens, and closing unmatched brackets.
+ */
+function closeJSON(s: string): string {
+  let result = s.trimEnd();
+
+  // Remove trailing partial tokens (key-value pairs cut mid-value)
+  result = result
+    .replace(/,?\s*"[^"]*"\s*:\s*(?:tru|fals|nul|t|f|n)?\s*$/m, "")
+    .replace(/,?\s*"[^"]*"\s*:\s*$/m, "")
+    .replace(/,?\s*"[^"]*"\s*$/m, "")
+    .replace(/,\s*$/m, "");
+
+  // Close unterminated string
+  let inStr = false, esc = false;
+  for (const ch of result) {
+    if (esc) { esc = false; continue; }
+    if (ch === "\\") { esc = true; continue; }
+    if (ch === '"') inStr = !inStr;
+  }
+  if (inStr) {
+    if (result.endsWith("\\")) result = result.slice(0, -1);
+    result += '"';
+  }
+
+  // Remove trailing comma after string closure
+  result = result.replace(/,\s*$/m, "");
+
+  // Count and close brackets
+  let braces = 0, brackets = 0;
+  inStr = false; esc = false;
+  for (const ch of result) {
+    if (esc) { esc = false; continue; }
+    if (ch === "\\") { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === "{") braces++;
+    if (ch === "}") braces--;
+    if (ch === "[") brackets++;
+    if (ch === "]") brackets--;
+  }
+  while (brackets > 0) { result += "]"; brackets--; }
+  while (braces > 0) { result += "}"; braces--; }
+
+  return result;
+}
+
+/**
+ * Aggressive fallback repair: when standard repair fails, use two
+ * strategies to find a parseable JSON structure.
+ *
+ * Strategy 1: Fine-grained progressive trimback from the end (up to 50%
+ *   of the string or 3000 chars, stepping by 20). Each cut point gets
+ *   partial-token cleanup + bracket closure.
+ *
+ * Strategy 2: Scan backward for each `}` boundary that yields valid JSON
+ *   when brackets are closed. This handles cases where corruption is
+ *   in the middle of a value (unescaped quotes, etc.) — we skip past
+ *   the corrupted region to the last structurally valid object boundary.
  */
 function aggressiveRepair(json: string): unknown {
-  // Strategy: trim back from the end, close strings/brackets, try parsing
-  // We try up to 500 chars back from the end to find a valid cut point
-  const maxTrimback = Math.min(500, Math.floor(json.length * 0.1));
+  // Strategy 1: Progressive trimback (fine-grained)
+  const maxTrimback = Math.min(3000, Math.floor(json.length * 0.5));
 
-  for (let trim = 0; trim <= maxTrimback; trim += 10) {
-    let attempt = json.slice(0, json.length - trim).trimEnd();
-
-    // Remove any trailing partial token (bare literal, incomplete key, etc.)
-    attempt = attempt
-      .replace(/,?\s*"[^"]*"\s*:\s*(?:tru|fals|nul|t|f|n)?\s*$/m, "")  // truncated literal after key
-      .replace(/,?\s*"[^"]*"\s*:\s*$/m, "")  // key with no value
-      .replace(/,?\s*"[^"]*"\s*$/m, "")  // standalone key without colon
-      .replace(/,\s*$/m, "");  // trailing comma
-
-    // Close any unterminated string
-    let inStr = false, esc = false;
-    for (const ch of attempt) {
-      if (esc) { esc = false; continue; }
-      if (ch === "\\") { esc = true; continue; }
-      if (ch === '"') inStr = !inStr;
-    }
-    if (inStr) {
-      if (attempt.endsWith("\\")) attempt = attempt.slice(0, -1);
-      attempt += '"';
-    }
-
-    // Remove trailing comma again (after string closure)
-    attempt = attempt.replace(/,\s*$/m, "");
-
-    // Count and close brackets
-    let braces = 0, brackets = 0;
-    inStr = false; esc = false;
-    for (const ch of attempt) {
-      if (esc) { esc = false; continue; }
-      if (ch === "\\") { esc = true; continue; }
-      if (ch === '"') { inStr = !inStr; continue; }
-      if (inStr) continue;
-      if (ch === "{") braces++;
-      if (ch === "}") braces--;
-      if (ch === "[") brackets++;
-      if (ch === "]") brackets--;
-    }
-    while (brackets > 0) { attempt += "]"; brackets--; }
-    while (braces > 0) { attempt += "}"; braces--; }
-
+  for (let trim = 0; trim <= maxTrimback; trim += 20) {
+    const slice = json.slice(0, json.length - trim);
+    const attempt = closeJSON(slice);
     try {
       return JSON.parse(attempt);
     } catch {
       continue;
+    }
+  }
+
+  // Strategy 2: Scan backward for } boundaries
+  // Find every } from the end and try closing from there
+  for (let i = json.length - 1; i > Math.floor(json.length * 0.3); i--) {
+    if (json[i] === "}") {
+      const slice = json.slice(0, i + 1);
+      const attempt = closeJSON(slice);
+      try {
+        const parsed = JSON.parse(attempt);
+        // Only accept if it has a slides array (not garbage)
+        if (parsed && typeof parsed === "object" && Array.isArray(parsed.slides)) {
+          return parsed;
+        }
+      } catch {
+        continue;
+      }
     }
   }
 
@@ -753,11 +788,20 @@ function aggressiveRepair(json: string): unknown {
  *   3. Aggressive repair (progressive truncation to find last valid cut point)
  */
 export function extractJSON(text: string): unknown {
-  // Step 1: Strip markdown code fences if present
+  // Step 1: Strip markdown code fences if present (GREEDY — match the LAST closing ```)
   let source = text;
-  const fenced = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  const fenced = text.match(/```(?:json)?\s*\n?([\s\S]*)\n?```/);
   if (fenced) {
     source = fenced[1].trim();
+  }
+
+  // Step 1b: Strip XML-like wrapper tags (e.g. <json_output>...</json_output>)
+  source = source.replace(/^<[a-z_]+>\s*/i, "").replace(/\s*<\/[a-z_]+>\s*$/i, "");
+
+  // Step 1c: Strip leading prose before the first { or [
+  const jsonStart = source.search(/[{[]/);
+  if (jsonStart > 0) {
+    source = source.slice(jsonStart);
   }
 
   // Step 2: Find the balanced JSON object/array using depth-tracking

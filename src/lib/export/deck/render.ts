@@ -194,10 +194,17 @@ export async function generateContent(
 
   const raw = await callClaude(system, user, apiKey, maxTokens);
 
+  // Diagnostic: log raw response stats for debugging JSON parse failures
+  console.log(`Content raw response: ${raw.length} chars, starts with: "${raw.slice(0, 80).replace(/\n/g, "\\n")}"`);
+
   let parsed: unknown;
   try {
     parsed = extractJSON(raw);
   } catch (e) {
+    // Log detailed diagnostics for debugging
+    console.error(`Content JSON extraction failed. Raw length: ${raw.length}`);
+    console.error(`First 300 chars: ${raw.slice(0, 300)}`);
+    console.error(`Last 300 chars: ${raw.slice(-300)}`);
     throw new Error(`Failed to parse content JSON: ${e}`);
   }
 
