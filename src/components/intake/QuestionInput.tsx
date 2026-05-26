@@ -8,6 +8,7 @@ import {
   readExcelFile,
   parseExcelToQuestions,
   extractTextFromPdf,
+  extractQuestionsWithAI,
   deduplicateQuestions,
 } from "@/lib/parsers";
 import type { RfpQuestion } from "@/types";
@@ -61,8 +62,9 @@ export default function QuestionInput() {
         let parsed: RfpQuestion[];
 
         if (file.name.endsWith(".pdf")) {
+          // Extract raw text, then use AI to identify actual questions/requirements
           const text = await extractTextFromPdf(file);
-          parsed = parseTextToQuestions(text);
+          parsed = await extractQuestionsWithAI(text);
         } else if (
           file.name.endsWith(".xlsx") ||
           file.name.endsWith(".xls") ||
@@ -180,7 +182,11 @@ export default function QuestionInput() {
             {isProcessing ? (
               <>
                 <Loader2 size={24} className="text-[var(--accent)] animate-spin" />
-                <span className="text-xs text-[var(--text3)]">Processing {uploadedFileName}...</span>
+                <span className="text-xs text-[var(--text3)]">
+                  {uploadedFileName?.endsWith(".pdf")
+                    ? "Extracting requirements with AI..."
+                    : `Processing ${uploadedFileName}...`}
+                </span>
               </>
             ) : uploadedFileName ? (
               <>
@@ -219,7 +225,7 @@ export default function QuestionInput() {
         <div className="mt-4">
           <div className="flex justify-between items-center mb-3">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[1.5px] text-[var(--text3)]">
-              Parsed Questions ({previewQuestions.length})
+              Extracted Requirements ({previewQuestions.length})
             </span>
             <div className="flex gap-2">
               <button

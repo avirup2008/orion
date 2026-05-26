@@ -193,6 +193,36 @@ export async function extractTextFromPdf(file: File): Promise<string> {
   return text;
 }
 
+// ── AI-powered extraction (for PDFs / unstructured documents) ──
+
+export async function extractQuestionsWithAI(
+  text: string
+): Promise<RfpQuestion[]> {
+  const res = await fetch("/api/parse/extract", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "AI extraction failed" }));
+    throw new Error(err.error || `AI extraction failed (${res.status})`);
+  }
+
+  const { items } = await res.json() as {
+    items: Array<{ text: string; type: string }>;
+  };
+
+  return items.map((item, i) => ({
+    id: generateQuestionId(),
+    number: i + 1,
+    text: item.text,
+    category: categorizeQuestion(item.text),
+    status: "queued" as const,
+    priority: "medium" as const,
+  }));
+}
+
 // ── Excel/CSV file reading ──
 
 export async function readExcelFile(
