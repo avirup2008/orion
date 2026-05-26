@@ -56,11 +56,14 @@ async function callClaude(
           model,
           max_tokens: maxTokens,
           system,
-          messages: [
-            { role: "user", content: user },
-            // Prefill forces Claude to start mid-JSON — no preamble or prose
-            { role: "assistant", content: "{" },
-          ],
+          // Sonnet 4+ doesn't support assistant prefill; Haiku 4.5 does.
+          // For models without prefill, rely on prompt instructions for JSON output.
+          messages: model.includes("haiku")
+            ? [
+                { role: "user", content: user },
+                { role: "assistant", content: "{" },
+              ]
+            : [{ role: "user", content: user }],
         }),
         signal: controller.signal,
       });
@@ -104,8 +107,8 @@ async function callClaude(
       if (!textBlock?.text) {
         throw new Error("No text in Claude response");
       }
-      // Prepend the "{" we used as prefill to get complete JSON
-      return "{" + textBlock.text;
+      // Prepend the "{" we used as prefill to get complete JSON (Haiku only)
+      return model.includes("haiku") ? "{" + textBlock.text : textBlock.text;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
