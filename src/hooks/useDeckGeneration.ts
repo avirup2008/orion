@@ -129,25 +129,75 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
     setOutline(null);
 
     try {
-      // --- Step 2: Generate Content ---
-      setProgress(40);
-      setStage("Composing slide content...");
+      // --- Step 2: Generate Content (batched for large decks) ---
+      const allSlides = approvedOutline.sections.flatMap((s: { slides: unknown[] }) => s.slides);
+      const BATCH_SIZE = 12;
+      const needsBatching = allSlides.length > BATCH_SIZE;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allContentSlides: any[] = [];
 
-      const contentRes = await fetch("/api/export/deck/content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: payload, outline: approvedOutline }),
-      });
+      if (needsBatching) {
+        // Split into batches — each is its own API call with its own 60s budget
+        const batches: typeof approvedOutline.sections = [];
+        for (let i = 0; i < allSlides.length; i += BATCH_SIZE) {
+          batches.push({
+            label: `BATCH`,
+            slides: allSlides.slice(i, i + BATCH_SIZE) as DeckOutline["sections"][0]["slides"],
+          });
+        }
 
-      if (!contentRes.ok) {
-        const errData = await contentRes.json().catch(() => ({}));
-        throw new Error(
-          (errData as Record<string, string>).error ||
-            `Content generation failed (HTTP ${contentRes.status})`,
-        );
+        for (let b = 0; b < batches.length; b++) {
+          const pct = 40 + Math.round((b / batches.length) * 30);
+          setProgress(pct);
+          setStage(`Composing slides ${b * BATCH_SIZE + 1}–${Math.min((b + 1) * BATCH_SIZE, allSlides.length)} of ${allSlides.length} (batch ${b + 1}/${batches.length})...`);
+
+          const batchOutline: DeckOutline = {
+            ...approvedOutline,
+            sections: [batches[b]],
+            totalSlides: batches[b].slides.length,
+          };
+
+          const contentRes = await fetch("/api/export/deck/content", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ request: payload, outline: batchOutline }),
+          });
+
+          if (!contentRes.ok) {
+            const errData = await contentRes.json().catch(() => ({}));
+            throw new Error(
+              (errData as Record<string, string>).error ||
+                `Content generation failed (batch ${b + 1}, HTTP ${contentRes.status})`,
+            );
+          }
+
+          const { content: batchContent } = await contentRes.json();
+          allContentSlides.push(...batchContent.slides);
+        }
+      } else {
+        // Small deck — single call
+        setProgress(40);
+        setStage("Composing slide content...");
+
+        const contentRes = await fetch("/api/export/deck/content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ request: payload, outline: approvedOutline }),
+        });
+
+        if (!contentRes.ok) {
+          const errData = await contentRes.json().catch(() => ({}));
+          throw new Error(
+            (errData as Record<string, string>).error ||
+              `Content generation failed (HTTP ${contentRes.status})`,
+          );
+        }
+
+        const { content: singleContent } = await contentRes.json();
+        allContentSlides.push(...singleContent.slides);
       }
 
-      const { content } = await contentRes.json();
+      const content = { slides: allContentSlides };
       setProgress(70);
       setStage(`Content composed for ${content.slides.length} slides`);
 

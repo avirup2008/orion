@@ -157,13 +157,21 @@ export async function generateOutline(
 
 /* ── Phase 2: Generate Content ──────────────────────────────────── */
 
+/**
+ * Generate content for a single batch of slides.
+ * For large decks, the CLIENT calls this multiple times with different
+ * outline subsets — each call stays under 60s.
+ */
 export async function generateContent(
   req: DeckRequest,
   outline: DeckOutline,
   apiKey: string,
 ): Promise<DeckContent> {
   const { system, user } = buildContentPrompt(req, outline);
-  const raw = await callClaude(system, user, apiKey, 16384);
+  // Scale max_tokens to slide count — ~400 tokens per slide
+  const slideCount = outline.sections.reduce((n, s) => n + s.slides.length, 0);
+  const maxTokens = Math.min(16384, Math.max(4096, slideCount * 500));
+  const raw = await callClaude(system, user, apiKey, maxTokens);
 
   let parsed: unknown;
   try {
@@ -174,16 +182,7 @@ export async function generateContent(
 
   const result = validateContent(parsed);
   if (!result.success) {
-    // Log diagnostic info about what Claude returned
-    try {
-      const slides = (parsed as Record<string, unknown>)?.slides;
-      if (Array.isArray(slides)) {
-        console.error("Slide bodies received from AI:", slides.map((s: Record<string, unknown>, i: number) => {
-          const body = s?.body as Record<string, unknown>;
-          return `[${i}] pattern=${body?.pattern}, keys=${body ? Object.keys(body).join(",") : "null"}`;
-        }).join(" | "));
-      }
-    } catch { /* diagnostic only */ }
+    logContentDiagnostics(parsed);
     const issues = result.error.issues
       .map((i) => `${i.path.join(".")}: ${i.message}`)
       .join("; ");
@@ -191,6 +190,18 @@ export async function generateContent(
   }
 
   return result.data as DeckContent;
+}
+
+function logContentDiagnostics(parsed: unknown) {
+  try {
+    const slides = (parsed as Record<string, unknown>)?.slides;
+    if (Array.isArray(slides)) {
+      console.error("Slide bodies from AI:", slides.map((s: Record<string, unknown>, i: number) => {
+        const body = s?.body as Record<string, unknown>;
+        return `[${i}] pattern=${body?.pattern}, keys=${body ? Object.keys(body).join(",") : "null"}`;
+      }).join(" | "));
+    }
+  } catch { /* diagnostic only */ }
 }
 
 /* ── Phase 3: Render PPTX ───────────────────────────────────────── */
