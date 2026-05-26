@@ -41,9 +41,11 @@ async function callClaude(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // 48s timeout — must complete well before Vercel's 60s function limit
+      // Haiku (outline) is fast → 48s timeout. Sonnet (content) is slower → 55s.
+      // Both must complete before Vercel's 60s function limit.
+      const timeoutMs = model.includes("haiku") ? 48_000 : 55_000;
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 48_000);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
