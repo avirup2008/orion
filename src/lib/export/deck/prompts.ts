@@ -95,7 +95,7 @@ Return a JSON object with this exact structure:
 
 ## Rules
 1. First slide is always section "COVER" with a single "cover" pattern slide
-2. ${req.targetSlideCount ? `The user has requested EXACTLY ${req.targetSlideCount} slides. Aim for exactly that count (±2 slides).` : "Aim for 12-25 slides total depending on proposal complexity"}
+2. ${req.targetSlideCount ? `The user has requested EXACTLY ${req.targetSlideCount} slides. You MUST produce exactly ${req.targetSlideCount} slides (±2). This is a hard requirement — NOT a suggestion. To fill ${req.targetSlideCount} slides with REAL content, go DEEP into each topic. Do NOT pad with summary/recap/thank-you/filler slides. Instead: break methodology into phase-by-phase detail slides, add per-module capability breakdowns, include industry-specific use cases, add risk mitigation detail, team member profiles, integration architecture per system, training/adoption plans, governance frameworks, change management detail, reference case studies. Every single slide must teach the reader something new.` : "Aim for 12-25 slides total depending on proposal complexity"}
 3. Every governing thought must be assertive and specific to THIS client — use their name, industry, and situation
 4. Every insight bar must reference the client by name or include specific numbers from their context or the KB
 5. Vary patterns — never use the same pattern 3 times in a row
@@ -103,7 +103,20 @@ Return a JSON object with this exact structure:
 7. Include at least one "metrics-dashboard" slide with REAL ROI metrics from the KB (not invented numbers)
 8. If costing data exists, include a "waterfall" or "staircase" for cost breakdown
 9. Include a "comparison-matrix" slide positioning EyeOn against Big 4 and DIY options
-10. Reference EyeOn's real differentiators: PLANS standard, Four Cornerstones, Anaplan Way methodology, specific accelerators`;
+10. Reference EyeOn's real differentiators: PLANS standard, Four Cornerstones, Anaplan Way methodology, specific accelerators
+
+## CRITICAL: No Filler Slides
+NEVER include any of these slide types — they are empty calories in a consulting deck:
+- "Thank you" / "Questions?" slides — the client knows how to end a meeting
+- "Table of Contents" / "Agenda" slides — the outline IS the agenda
+- "Summary" / "Recap" / "Key Takeaways" slides — every slide should stand alone
+- "About EyeOn" generic boilerplate — weave credentials into relevant slides
+- "Our Values" / "Our Mission" slides — show values through capabilities, not slogans
+- Slides with only 1-2 bullet points — if a slide has less than 3 substantive data points, it should be merged into another slide
+- Repeat slides that say the same thing as an earlier slide in different words
+
+Instead, every slide must pass this test: "Does this slide contain a SPECIFIC CLAIM backed by CONCRETE DATA that the previous slide did not?"
+If the answer is no, the slide is filler and should be replaced with substantive content.`;
 
   const user = buildOutlineUserMessage(req);
 
@@ -221,6 +234,17 @@ ${kbContext}
 8. No filler, no "lorem ipsum", no generic consulting speak
 9. For comparison-matrix slides: use REAL EyeOn differentiators (Platinum Partner, PLANS standard, process-first methodology, €750-1100/day rate range) vs competitors
 10. For metrics-dashboard slides: pull actual industry metrics from the KB (e.g. "35-45% forecast accuracy improvement", "70% planning cycle reduction")
+
+## CRITICAL: Depth Over Breadth — No Empty Slides
+Every slide must contain DENSE, SUBSTANTIVE content. A consulting partner paying €200/hr for this deck expects EVERY slide to deliver value.
+- Waterfall: every bar needs a description AND 2-3 detail sub-items — not just labels
+- Gated-flow: every phase needs 4-5 specific, actionable bullets — not "Execute activities"
+- Content-cards: every card needs a title, a real body paragraph, and ideally a metric
+- Comparison-matrix: every cell needs specific text, not just checkmarks
+- Timeline: every milestone needs a description explaining what happens, not just a label
+- Metrics-dashboard: every metric needs a sublabel explaining context
+- Architecture-flow: every card needs a subtitle explaining its role
+- If a slide's contentBrief says "Overview of..." or "Introduction to...", that's a signal to go DEEPER: what specific capabilities? what specific numbers? what specific client impact?
 
 ## Pattern-Specific Content Guidelines
 

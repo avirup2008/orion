@@ -99,7 +99,7 @@ export const DeckOutlineSchema = z.object({
   title: z.string(),
   subtitle: z.string(),
   sections: z.array(DeckSectionSchema).min(2),
-  totalSlides: z.number().int().min(3).max(40),
+  totalSlides: z.number().int().min(3).max(60),
 });
 
 /* ── Phase 2: Content — Slide Bodies ────────────────────────────── */

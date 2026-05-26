@@ -221,10 +221,11 @@ export default function IntakePage() {
                       className="bg-[var(--surface)] border border-[var(--border)] rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--text2)] cursor-pointer"
                     >
                       <option value={0}>Auto</option>
-                      <option value={8}>~8 (Brief)</option>
-                      <option value={12}>~12 (Standard)</option>
-                      <option value={18}>~18 (Detailed)</option>
-                      <option value={25}>~25 (Comprehensive)</option>
+                      <option value={10}>~10 (Brief)</option>
+                      <option value={15}>~15 (Standard)</option>
+                      <option value={20}>~20 (Detailed)</option>
+                      <option value={30}>~30 (Deep)</option>
+                      <option value={40}>~40 (Comprehensive)</option>
                     </select>
                   </div>
                   {/* Review toggle */}
