@@ -95,12 +95,30 @@ const DeckSectionSchema = z.object({
   slides: z.array(SlideOutlineSchema).min(1),
 });
 
-export const DeckOutlineSchema = z.object({
-  title: z.string(),
-  subtitle: z.string(),
-  sections: z.array(DeckSectionSchema).min(2),
-  totalSlides: z.number().int().min(3).max(60),
-});
+export const DeckOutlineSchema = z.preprocess(
+  (val) => {
+    // Auto-compute totalSlides if missing (truncated output)
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const o = val as Record<string, unknown>;
+      if (!o.totalSlides && Array.isArray(o.sections)) {
+        const sections = o.sections as Array<{ slides?: unknown[] }>;
+        o.totalSlides = sections.reduce(
+          (n, s) => n + (Array.isArray(s?.slides) ? s.slides.length : 0),
+          0,
+        );
+      }
+      // Default subtitle if missing
+      if (!o.subtitle) o.subtitle = "";
+    }
+    return val;
+  },
+  z.object({
+    title: z.string(),
+    subtitle: z.string().default(""),
+    sections: z.array(DeckSectionSchema).min(2),
+    totalSlides: z.number().int().min(3).max(60),
+  }),
+);
 
 /* ── Phase 2: Content — Slide Bodies ────────────────────────────── */
 

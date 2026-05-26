@@ -143,8 +143,11 @@ export async function generateOutline(
   const { system, user } = buildOutlinePrompt(req);
   // Haiku for outline — faster, and outline is just structure (patterns,
   // sections, governing thoughts). Sonnet reserved for content where depth matters.
-  // max_tokens=2048 — outline JSON for 15-25 slides is ~1200 tokens
-  const raw = await callClaude(system, user, apiKey, 2048, "claude-haiku-4-5-20251001");
+  // Scale tokens to expected slide count — ~120 tokens per slide in outline JSON
+  // Min 3072 for small decks, max 4096 for large ones
+  const estimatedSlides = req.targetSlideCount || 18;
+  const outlineTokens = Math.min(4096, Math.max(3072, estimatedSlides * 140));
+  const raw = await callClaude(system, user, apiKey, outlineTokens, "claude-haiku-4-5-20251001");
 
   let parsed: unknown;
   try {
