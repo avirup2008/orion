@@ -131,7 +131,9 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
     try {
       // --- Step 2: Generate Content (batched for large decks) ---
       const allSlides = approvedOutline.sections.flatMap((s: { slides: unknown[] }) => s.slides);
-      const BATCH_SIZE = 3;
+      // 2 slides per batch — tool_use is slower than raw text, need each batch
+      // to complete in <42s to stay within Vercel's 60s function timeout
+      const BATCH_SIZE = 2;
       const needsBatching = allSlides.length > BATCH_SIZE;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allContentSlides: any[] = [];

@@ -116,7 +116,7 @@ async function callClaude(
 
       // Abort (our timeout) — don't retry, give clear message
       if (lastError.name === "AbortError" || lastError.message.includes("aborted")) {
-        const limitSec = model.includes("haiku") ? 48 : 55;
+        const limitSec = model.includes("haiku") ? 40 : 42;
         throw new Error(
           `Claude took too long to respond (>${limitSec}s). Try reducing slide count or simplifying input.`
         );
@@ -163,7 +163,10 @@ async function callClaudeWithTool(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const timeoutMs = model.includes("haiku") ? 45_000 : 50_000;
+      // Tighter timeout for tool_use: 42s for Sonnet, 40s for Haiku
+      // Must complete well within Vercel's 60s function limit (need ~15s headroom
+      // for request parsing, response serialization, and network latency)
+      const timeoutMs = model.includes("haiku") ? 40_000 : 42_000;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -262,7 +265,7 @@ async function callClaudeWithTool(
       lastError = err instanceof Error ? err : new Error(String(err));
 
       if (lastError.name === "AbortError" || lastError.message.includes("aborted")) {
-        const limitSec = model.includes("haiku") ? 48 : 55;
+        const limitSec = model.includes("haiku") ? 40 : 42;
         throw new Error(
           `Claude took too long to respond (>${limitSec}s). Try reducing slide count or simplifying input.`
         );
