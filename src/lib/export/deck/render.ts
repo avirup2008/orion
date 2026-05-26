@@ -186,9 +186,11 @@ export async function generateContent(
   apiKey: string,
 ): Promise<DeckContent> {
   const { system, user } = buildContentPrompt(req, outline);
-  // Scale max_tokens to slide count — ~500 tokens per slide, min 2048
+  // Scale max_tokens to slide count — ~800 tokens per slide, min 2048
+  // Complex patterns (comparison-matrix, gated-flow, architecture-flow) need 600-900 tokens each.
+  // Previous budget of 500/slide caused truncation → malformed JSON.
   const slideCount = outline.sections.reduce((n, s) => n + s.slides.length, 0);
-  const maxTokens = Math.min(8192, Math.max(2048, slideCount * 500));
+  const maxTokens = Math.min(8192, Math.max(2048, slideCount * 800));
 
   const raw = await callClaude(system, user, apiKey, maxTokens);
 

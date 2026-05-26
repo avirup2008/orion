@@ -502,9 +502,26 @@ const SlideContentSchema = z.object({
   body: SlideBodySchema,
 });
 
-export const DeckContentSchema = z.object({
-  slides: z.array(SlideContentSchema).min(3),
-});
+export const DeckContentSchema = z.preprocess(
+  (val) => {
+    // Filter out slides that are incomplete (truncated output)
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const o = val as Record<string, unknown>;
+      if (Array.isArray(o.slides)) {
+        o.slides = (o.slides as Record<string, unknown>[]).filter((s) =>
+          s && typeof s === "object" &&
+          typeof s.id === "string" &&
+          typeof s.body === "object" && s.body !== null,
+        );
+      }
+    }
+    return val;
+  },
+  z.object({
+    // min(1) instead of min(3): batched content may have only 1-3 slides per batch
+    slides: z.array(SlideContentSchema).min(1),
+  }),
+);
 
 /* ── Validation Helpers ─────────────────────────────────────────── */
 
@@ -600,6 +617,20 @@ function repairJSON(raw: string): string {
   // e.g. `"value", "key":` → remove the trailing incomplete key-value
   // Trim trailing whitespace first
   s = s.trimEnd();
+
+  // Fix truncated bare literals at the end of the string
+  // e.g., `"highlighted": tru` → `"highlighted": true`
+  s = s.replace(/(:\s*)tru\s*$/m, "$1true");
+  s = s.replace(/(:\s*)fals\s*$/m, "$1false");
+  s = s.replace(/(:\s*)nul\s*$/m, "$1null");
+  // Shorter truncations — riskier but common
+  s = s.replace(/(:\s*)tr\s*$/m, "$1true");
+  s = s.replace(/(:\s*)fa\s*$/m, "$1false");
+  s = s.replace(/(:\s*)nu\s*$/m, "$1null");
+
+  // Fix truncated decimal numbers: `123.` → `123.0`
+  s = s.replace(/(:\s*-?\d+)\.\s*$/m, "$1.0");
+
   // Remove trailing colon (incomplete value) like `"key":`
   if (s.endsWith(":")) {
     // Remove the dangling key: find the last complete key and remove `"key":`
@@ -630,9 +661,75 @@ function repairJSON(raw: string): string {
 }
 
 /**
+ * Aggressive fallback repair: when standard repair fails, progressively
+ * truncate from the error position backward to find the last parseable
+ * JSON structure. Handles truncated literals, unescaped quotes, etc.
+ */
+function aggressiveRepair(json: string): unknown {
+  // Strategy: trim back from the end, close strings/brackets, try parsing
+  // We try up to 500 chars back from the end to find a valid cut point
+  const maxTrimback = Math.min(500, Math.floor(json.length * 0.1));
+
+  for (let trim = 0; trim <= maxTrimback; trim += 10) {
+    let attempt = json.slice(0, json.length - trim).trimEnd();
+
+    // Remove any trailing partial token (bare literal, incomplete key, etc.)
+    attempt = attempt
+      .replace(/,?\s*"[^"]*"\s*:\s*(?:tru|fals|nul|t|f|n)?\s*$/m, "")  // truncated literal after key
+      .replace(/,?\s*"[^"]*"\s*:\s*$/m, "")  // key with no value
+      .replace(/,?\s*"[^"]*"\s*$/m, "")  // standalone key without colon
+      .replace(/,\s*$/m, "");  // trailing comma
+
+    // Close any unterminated string
+    let inStr = false, esc = false;
+    for (const ch of attempt) {
+      if (esc) { esc = false; continue; }
+      if (ch === "\\") { esc = true; continue; }
+      if (ch === '"') inStr = !inStr;
+    }
+    if (inStr) {
+      if (attempt.endsWith("\\")) attempt = attempt.slice(0, -1);
+      attempt += '"';
+    }
+
+    // Remove trailing comma again (after string closure)
+    attempt = attempt.replace(/,\s*$/m, "");
+
+    // Count and close brackets
+    let braces = 0, brackets = 0;
+    inStr = false; esc = false;
+    for (const ch of attempt) {
+      if (esc) { esc = false; continue; }
+      if (ch === "\\") { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === "{") braces++;
+      if (ch === "}") braces--;
+      if (ch === "[") brackets++;
+      if (ch === "]") brackets--;
+    }
+    while (brackets > 0) { attempt += "]"; brackets--; }
+    while (braces > 0) { attempt += "}"; braces--; }
+
+    try {
+      return JSON.parse(attempt);
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error("Unable to repair JSON after aggressive truncation");
+}
+
+/**
  * Extract JSON from a Claude response that may contain markdown fencing,
  * trailing prose, or syntax errors. Uses bracket-depth matching to isolate
  * the JSON object, then applies repair for common LLM quirks.
+ *
+ * 3-pass strategy:
+ *   1. Direct parse (fast path)
+ *   2. Standard repair (trailing commas, unterminated strings, brackets)
+ *   3. Aggressive repair (progressive truncation to find last valid cut point)
  */
 export function extractJSON(text: string): unknown {
   // Step 1: Strip markdown code fences if present
@@ -653,12 +750,25 @@ export function extractJSON(text: string): unknown {
     // Fall through to repair
   }
 
-  // Step 4: Repair and retry
+  // Step 4: Standard repair and retry
   const repaired = repairJSON(candidate);
   try {
     return JSON.parse(repaired);
+  } catch {
+    // Fall through to aggressive repair
+  }
+
+  // Step 5: Aggressive repair — progressive truncation fallback
+  // Handles: truncated bare literals (tru/fals/nul), unescaped quotes in values,
+  // incomplete nested objects, and other edge cases standard repair can't fix
+  try {
+    console.warn("Standard JSON repair failed, attempting aggressive truncation repair...");
+    const result = aggressiveRepair(repaired);
+    console.warn("Aggressive repair succeeded — some content may be truncated");
+    return result;
   } catch (e) {
-    console.error("JSON extraction failed. First 500 chars:", candidate.slice(0, 500));
-    throw e;
+    console.error("JSON extraction failed after all repair attempts. First 500 chars:", candidate.slice(0, 500));
+    console.error("Last 200 chars:", candidate.slice(-200));
+    throw new Error(`Failed to parse content JSON: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
