@@ -18,6 +18,7 @@ import { renderComparisonMatrix } from "./comparison-matrix";
 import { renderTimeline } from "./timeline";
 import { renderMetricsDashboard } from "./metrics-dashboard";
 import { renderQuoteCallout } from "./quote-callout";
+import { renderSectionDivider } from "./section-divider";
 
 type RendererFn = (
   slide: PptxSlide,
@@ -44,6 +45,7 @@ const REGISTRY: Record<PatternType, RendererFn> = {
   "timeline":           renderTimeline as any,
   "metrics-dashboard":  renderMetricsDashboard as any,
   "quote-callout":      renderQuoteCallout as any,
+  "section-divider":    renderSectionDivider as any,
   /* eslint-enable @typescript-eslint/no-explicit-any */
 };
 

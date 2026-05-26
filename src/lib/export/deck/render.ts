@@ -12,6 +12,7 @@ import type {
   DeckOutline,
   DeckContent,
   SlideContent,
+  SlideBody,
   BrandConfig,
 } from "./types";
 import { getBrandConfig } from "./assets";
@@ -20,7 +21,14 @@ import { renderPattern } from "./patterns";
 import { buildOutlinePrompt, buildContentPrompt } from "./prompts";
 import { validateOutline, validateContent, extractJSON } from "./validation";
 
-/* ── Claude API Call ────────────────────────────────────────────── */
+/* ── Claude API Call with Retry ─────────────────────────────────── */
+
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 2000;
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function callClaude(
   system: string,
@@ -28,34 +36,81 @@ async function callClaude(
   apiKey: string,
   maxTokens: number = 8192,
 ): Promise<string> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: user }],
-    }),
-  });
+  let lastError: Error | null = null;
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Claude API error ${res.status}: ${err}`);
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: maxTokens,
+          system,
+          messages: [{ role: "user", content: user }],
+        }),
+      });
+
+      // Rate limit — wait and retry
+      if (res.status === 429) {
+        const retryAfter = res.headers.get("retry-after");
+        const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : RETRY_DELAY_MS * (attempt + 1);
+        console.warn(`Claude rate limited (429). Retrying in ${waitMs}ms (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+        if (attempt < MAX_RETRIES) {
+          await sleep(waitMs);
+          continue;
+        }
+        throw new Error("Rate limited by Claude API. Please try again in a few minutes.");
+      }
+
+      // Server errors — retry
+      if (res.status >= 500 && attempt < MAX_RETRIES) {
+        console.warn(`Claude server error ${res.status}. Retrying (attempt ${attempt + 1}/${MAX_RETRIES + 1})`);
+        await sleep(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
+
+      if (!res.ok) {
+        const err = await res.text();
+        if (res.status === 401) {
+          throw new Error("Invalid API key. Check ANTHROPIC_API_KEY in Vercel environment variables.");
+        }
+        if (res.status === 400) {
+          throw new Error(`Claude rejected the request: ${err.slice(0, 200)}`);
+        }
+        throw new Error(`Claude API error ${res.status}: ${err.slice(0, 200)}`);
+      }
+
+      const data = await res.json();
+      const textBlock = data.content?.find(
+        (b: { type: string }) => b.type === "text",
+      );
+      if (!textBlock?.text) {
+        throw new Error("No text in Claude response");
+      }
+      return textBlock.text;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Network errors — retry
+      if (
+        attempt < MAX_RETRIES &&
+        (lastError.message.includes("fetch") ||
+          lastError.message.includes("network") ||
+          lastError.message.includes("ECONNRESET"))
+      ) {
+        console.warn(`Network error. Retrying (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${lastError.message}`);
+        await sleep(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
+      throw lastError;
+    }
   }
 
-  const data = await res.json();
-  const textBlock = data.content?.find(
-    (b: { type: string }) => b.type === "text",
-  );
-  if (!textBlock?.text) {
-    throw new Error("No text in Claude response");
-  }
-  return textBlock.text;
+  throw lastError || new Error("Claude API call failed after retries");
 }
 
 /* ── Phase 1: Generate Outline ──────────────────────────────────── */
@@ -140,13 +195,46 @@ export async function renderPptx(
   pptx.company = "EyeOn";
   pptx.subject = "Anaplan Implementation Proposal";
 
+  // Inject section divider slides between sections
+  const slidesWithDividers: SlideContent[] = [];
+  let lastSection = "";
+  let sectionIndex = 0;
+  const uniqueSections = [...new Set(
+    content.slides
+      .filter((s) => s.body.pattern !== "cover")
+      .map((s) => s.sectionLabel),
+  )];
+  const totalSections = uniqueSections.length;
+
+  content.slides.forEach((sc) => {
+    if (sc.sectionLabel !== lastSection && sc.body.pattern !== "cover") {
+      sectionIndex++;
+      // Insert section divider
+      slidesWithDividers.push({
+        id: `divider-${sectionIndex}`,
+        sectionLabel: sc.sectionLabel,
+        governingThought: "",
+        subtitle: "",
+        insightBar: { label: "", detail: "" },
+        body: {
+          pattern: "section-divider",
+          sectionLabel: sc.sectionLabel,
+          sectionNumber: sectionIndex,
+          totalSections,
+        } as SlideBody,
+      });
+      lastSection = sc.sectionLabel;
+    }
+    slidesWithDividers.push(sc);
+  });
+
   // Render each slide
-  content.slides.forEach((sc: SlideContent, i: number) => {
+  slidesWithDividers.forEach((sc: SlideContent, i: number) => {
     const slide = pptx.addSlide();
 
     try {
-      if (sc.body.pattern === "cover") {
-        // Cover gets minimal chrome (just logo + footer)
+      if (sc.body.pattern === "cover" || sc.body.pattern === "section-divider") {
+        // Cover and section dividers render their own chrome
         renderPattern(slide, pptx, sc.body, brand);
       } else {
         // Full chrome + pattern

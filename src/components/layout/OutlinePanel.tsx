@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { CATEGORY_CONFIG } from "@/types";
 import type { ProposalProject, RfpQuestion } from "@/types";
 import { useAppDispatch, useAppState } from "@/lib/store";
+import { useDeckGeneration } from "@/hooks/useDeckGeneration";
 import {
   Settings2,
   Calculator,
@@ -46,12 +47,20 @@ export default function OutlinePanel({
   const dispatch = useAppDispatch();
   const { clarification, client, questions } = useAppState();
 
-  const [deckStatus, setDeckStatus] = useState<
-    "idle" | "generating" | "error"
-  >("idle");
-  const [deckError, setDeckError] = useState("");
-  const [deckProgress, setDeckProgress] = useState(0);
-  const [deckStage, setDeckStage] = useState("");
+  const {
+    status: deckStatus,
+    error: deckError,
+    progress: deckProgress,
+    stage: deckStage,
+    generateDeck: handleExportDeck,
+    setEnableOutlineReview,
+  } = useDeckGeneration();
+
+  // Sidebar export skips outline review for faster workflow
+  const handleExportDeckDirect = useCallback(async () => {
+    setEnableOutlineReview(false);
+    await handleExportDeck();
+  }, [handleExportDeck, setEnableOutlineReview]);
 
   const handleExportPdf = useCallback(async () => {
     const clientName = client.companyName || "Client";
@@ -72,159 +81,6 @@ export default function OutlinePanel({
 
     await exportProposalPdf(questions, clientName, rfpTitle, costSummary);
   }, [client, questions, clarification]);
-
-  const handleExportDeck = useCallback(async () => {
-    setDeckStatus("generating");
-    setDeckError("");
-    setDeckProgress(0);
-    setDeckStage("Preparing...");
-
-    try {
-      // Build the request payload — supports questions, documents, or both
-      const questionsWithResponses = questions.filter((q) => q.response?.content);
-      const uploadedDocs = getUploadedDocs();
-
-      const payload: Record<string, unknown> = {
-        client: {
-          companyName: client.companyName || "Client",
-          industry: client.industry || "Technology",
-          size: client.size,
-          painPoints: client.painPoints
-            ? client.painPoints.split(",").map((s: string) => s.trim())
-            : undefined,
-        },
-        engagementName: client.industry
-          ? `${client.companyName} — ${client.industry}`
-          : undefined,
-      };
-
-      // Include questions if available
-      if (questionsWithResponses.length > 0) {
-        payload.questions = questionsWithResponses.map((q) => ({
-          id: q.id,
-          text: q.text,
-          category: q.category,
-          response: q.response!.content,
-          wordCount: q.response!.wordCount || q.response!.content.split(/\s+/).length,
-          score: q.response!.qualityScore,
-        }));
-      }
-
-      // Include uploaded documents if available
-      if (uploadedDocs.length > 0) {
-        payload.documents = uploadedDocs.map((d) => ({
-          name: d.name,
-          content: d.content,
-          wordCount: d.wordCount,
-        }));
-      }
-
-      // --- Step 1: Generate Outline ---
-      setDeckProgress(10);
-      setDeckStage("Generating narrative outline...");
-
-      const outlineRes = await fetch("/api/export/deck/outline", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!outlineRes.ok) {
-        const errData = await outlineRes.json().catch(() => ({}));
-        throw new Error(
-          (errData as Record<string, string>).error ||
-            `Outline failed: HTTP ${outlineRes.status}`,
-        );
-      }
-
-      const { outline } = await outlineRes.json();
-      setDeckProgress(35);
-      setDeckStage(
-        `Outline ready — ${outline.totalSlides} slides across ${outline.sections.length} sections`,
-      );
-
-      // --- Step 2: Generate Content ---
-      setDeckProgress(40);
-      setDeckStage("Composing slide content...");
-
-      const contentRes = await fetch("/api/export/deck/content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request: payload, outline }),
-      });
-
-      if (!contentRes.ok) {
-        const errData = await contentRes.json().catch(() => ({}));
-        throw new Error(
-          (errData as Record<string, string>).error ||
-            `Content failed: HTTP ${contentRes.status}`,
-        );
-      }
-
-      const { content } = await contentRes.json();
-      setDeckProgress(70);
-      setDeckStage(`Content composed for ${content.slides.length} slides`);
-
-      // --- Step 3: Render PPTX ---
-      setDeckProgress(75);
-      setDeckStage("Rendering slides...");
-
-      const renderRes = await fetch("/api/export/deck/render", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content,
-          outline,
-          clientName: client.companyName || "Client",
-        }),
-      });
-
-      if (!renderRes.ok) {
-        const errData = await renderRes.json().catch(() => ({}));
-        throw new Error(
-          (errData as Record<string, string>).error ||
-            `Render failed: HTTP ${renderRes.status}`,
-        );
-      }
-
-      const result = await renderRes.json();
-      setDeckProgress(100);
-      setDeckStage(`Done — ${result.slideCount} slides`);
-
-      // Decode base64 and trigger download
-      const byteChars = atob(result.data);
-      const byteArray = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) {
-        byteArray[i] = byteChars.charCodeAt(i);
-      }
-      const blob = new Blob([byteArray], {
-        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = result.filename || "proposal.pptx";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setTimeout(() => {
-        setDeckStatus("idle");
-        setDeckProgress(0);
-        setDeckStage("");
-      }, 2000);
-    } catch (err) {
-      console.error("Deck export error:", err);
-      setDeckError(err instanceof Error ? err.message : "Unknown error");
-      setDeckStatus("error");
-      setDeckProgress(0);
-      setTimeout(() => {
-        setDeckStatus("idle");
-        setDeckStage("");
-      }, 5000);
-    }
-  }, [questions, client]);
 
   return (
     <aside className="w-[260px] min-w-[260px] bg-[var(--navy)] text-white/70 flex flex-col overflow-hidden">
@@ -316,7 +172,7 @@ export default function OutlinePanel({
               Export PDF
             </button>
             <button
-              onClick={handleExportDeck}
+              onClick={handleExportDeckDirect}
               disabled={deckStatus === "generating"}
               className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-medium transition-all ${
                 deckStatus === "generating"

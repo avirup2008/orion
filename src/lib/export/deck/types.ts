@@ -130,7 +130,8 @@ export type PatternType =
   | "comparison-matrix"
   | "timeline"
   | "metrics-dashboard"
-  | "quote-callout";
+  | "quote-callout"
+  | "section-divider";
 
 /* ── AI Output: Content (Phase 2) ───────────────────────────────── */
 
@@ -166,7 +167,8 @@ export type SlideBody =
   | ComparisonMatrixBody
   | TimelineBody
   | MetricsDashboardBody
-  | QuoteCalloutBody;
+  | QuoteCalloutBody
+  | SectionDividerBody;
 
 export interface CoverBody {
   pattern: "cover";
@@ -293,6 +295,14 @@ export interface QuoteCalloutBody {
   attribution: string;
   role: string;
   context?: string;
+}
+
+export interface SectionDividerBody {
+  pattern: "section-divider";
+  sectionLabel: string;
+  sectionNumber: number;
+  totalSections: number;
+  subtitle?: string;
 }
 
 /* ── Pattern Renderer Interface ─────────────────────────────────── */
