@@ -16,6 +16,7 @@ import {
   Sparkles,
   Eye,
   EyeOff,
+  LogOut,
 } from "lucide-react";
 
 export default function IntakePage() {
@@ -87,6 +88,16 @@ export default function IntakePage() {
               <ArrowRight size={14} />
             </button>
           )}
+          <button
+            onClick={async () => {
+              await fetch("/api/auth", { method: "DELETE" });
+              window.location.href = "/login";
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-[var(--text4)] hover:text-[var(--neg)] hover:bg-[var(--neg-pale)] transition-all"
+            title="Logout"
+          >
+            <LogOut size={13} />
+          </button>
         </div>
       </nav>
 
