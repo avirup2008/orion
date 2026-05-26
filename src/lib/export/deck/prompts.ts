@@ -84,8 +84,8 @@ Return a JSON object with this exact structure:
           "pattern": "pattern-type",
           "governingThought": "The assertive claim this slide proves",
           "subtitle": "Supporting italic line that expands on the thought",
-          "insightBar": "Client-specific context with real numbers",
-          "contentBrief": "Brief description of what data/content to show — reference specific KB facts"
+          "insightBar": "1 line: client-specific context with real numbers",
+          "contentBrief": "1-2 sentences MAX: what data to show"
         }
       ]
     }
