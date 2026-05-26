@@ -86,6 +86,8 @@ export interface DeckRequest {
   /** Engagement metadata */
   engagementName?: string;
   modules?: string[];
+  /** Target slide count — user override (default: AI decides) */
+  targetSlideCount?: number;
 }
 
 /* ── AI Output: Outline (Phase 1) ───────────────────────────────── */

@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
     competitiveContext: body.competitiveContext as string | undefined,
     engagementName: body.engagementName as string | undefined,
     modules: body.modules as string[] | undefined,
+    targetSlideCount: typeof body.targetSlideCount === "number" ? body.targetSlideCount : undefined,
   };
 
   try {

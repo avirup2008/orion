@@ -21,6 +21,9 @@ export interface UseDeckGenerationReturn {
   /** Enable/disable outline review step */
   enableOutlineReview: boolean;
   setEnableOutlineReview: (v: boolean) => void;
+  /** Target slide count (0 = auto) */
+  targetSlideCount: number;
+  setTargetSlideCount: (v: number) => void;
 }
 
 const PIPELINE_STEPS = [
@@ -48,6 +51,7 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
   const [stage, setStage] = useState("");
   const [outline, setOutline] = useState<DeckOutline | null>(null);
   const [enableOutlineReview, setEnableOutlineReview] = useState(true);
+  const [targetSlideCount, setTargetSlideCount] = useState(0); // 0 = auto
 
   // Store payload for continuing after outline review
   const payloadRef = useRef<Record<string, unknown> | null>(null);
@@ -67,6 +71,7 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
       engagementName: client.industry
         ? `${client.companyName} — ${client.industry}`
         : undefined,
+      targetSlideCount: targetSlideCount > 0 ? targetSlideCount : undefined,
     };
 
     // Include questions (with or without responses)
@@ -95,7 +100,7 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
     }
 
     return payload;
-  }, [questions, client]);
+  }, [questions, client, targetSlideCount]);
 
   const downloadPptx = useCallback((result: { data: string; filename?: string; slideCount: number }) => {
     const byteChars = atob(result.data);
@@ -283,5 +288,7 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
     cancelOutline,
     enableOutlineReview,
     setEnableOutlineReview,
+    targetSlideCount,
+    setTargetSlideCount,
   };
 }

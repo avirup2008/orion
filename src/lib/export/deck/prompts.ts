@@ -95,7 +95,7 @@ Return a JSON object with this exact structure:
 
 ## Rules
 1. First slide is always section "COVER" with a single "cover" pattern slide
-2. Aim for 12-25 slides total depending on proposal complexity
+2. ${req.targetSlideCount ? `The user has requested EXACTLY ${req.targetSlideCount} slides. Aim for exactly that count (±2 slides).` : "Aim for 12-25 slides total depending on proposal complexity"}
 3. Every governing thought must be assertive and specific to THIS client — use their name, industry, and situation
 4. Every insight bar must reference the client by name or include specific numbers from their context or the KB
 5. Vary patterns — never use the same pattern 3 times in a row

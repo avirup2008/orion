@@ -34,6 +34,8 @@ export default function IntakePage() {
     cancelOutline,
     enableOutlineReview,
     setEnableOutlineReview,
+    targetSlideCount,
+    setTargetSlideCount,
   } = useDeckGeneration();
 
   const canProceed = questions.length > 0;
@@ -207,21 +209,41 @@ export default function IntakePage() {
               {/* ═══════════════════════════════════════════════════ */}
               <div className="rounded-xl overflow-hidden shadow-[var(--sh-lg)]">
                 {/* Review toggle */}
-                <div className="bg-[var(--surface2)] px-4 py-2.5 flex items-center justify-between border border-[var(--border)] border-b-0 rounded-t-xl">
-                  <span className="text-[11px] text-[var(--text3)] font-medium">
-                    Review outline before generating
-                  </span>
-                  <button
-                    onClick={() => setEnableOutlineReview(!enableOutlineReview)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
-                      enableOutlineReview
-                        ? "bg-[var(--accent-pale)] text-[var(--accent)] border border-[var(--accent-bd)]"
-                        : "bg-[var(--surface3)] text-[var(--text4)] border border-[var(--border)]"
-                    }`}
-                  >
-                    {enableOutlineReview ? <Eye size={11} /> : <EyeOff size={11} />}
-                    {enableOutlineReview ? "On" : "Off"}
-                  </button>
+                <div className="bg-[var(--surface2)] px-4 py-2.5 flex items-center justify-between border border-[var(--border)] border-b-0 rounded-t-xl gap-3">
+                  {/* Slide count selector */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[var(--text3)] font-medium whitespace-nowrap">
+                      Slides
+                    </span>
+                    <select
+                      value={targetSlideCount}
+                      onChange={(e) => setTargetSlideCount(Number(e.target.value))}
+                      className="bg-[var(--surface)] border border-[var(--border)] rounded-md px-2 py-1 text-[11px] font-semibold text-[var(--text2)] cursor-pointer"
+                    >
+                      <option value={0}>Auto</option>
+                      <option value={8}>~8 (Brief)</option>
+                      <option value={12}>~12 (Standard)</option>
+                      <option value={18}>~18 (Detailed)</option>
+                      <option value={25}>~25 (Comprehensive)</option>
+                    </select>
+                  </div>
+                  {/* Review toggle */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[var(--text3)] font-medium whitespace-nowrap">
+                      Review outline
+                    </span>
+                    <button
+                      onClick={() => setEnableOutlineReview(!enableOutlineReview)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
+                        enableOutlineReview
+                          ? "bg-[var(--accent-pale)] text-[var(--accent)] border border-[var(--accent-bd)]"
+                          : "bg-[var(--surface3)] text-[var(--text4)] border border-[var(--border)]"
+                      }`}
+                    >
+                      {enableOutlineReview ? <Eye size={11} /> : <EyeOff size={11} />}
+                      {enableOutlineReview ? "On" : "Off"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Main CTA button */}
