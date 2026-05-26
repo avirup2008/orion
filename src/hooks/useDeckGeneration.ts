@@ -165,8 +165,9 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
 
           if (!contentRes.ok) {
             const errData = await contentRes.json().catch(() => ({}));
+            const errMsg = (errData as Record<string, unknown>).error;
             throw new Error(
-              (errData as Record<string, string>).error ||
+              (typeof errMsg === "string" ? errMsg : errMsg ? JSON.stringify(errMsg) : null) ||
                 `Content generation failed (batch ${b + 1}, HTTP ${contentRes.status})`,
             );
           }
@@ -187,8 +188,9 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
 
         if (!contentRes.ok) {
           const errData = await contentRes.json().catch(() => ({}));
+          const errMsg = (errData as Record<string, unknown>).error;
           throw new Error(
-            (errData as Record<string, string>).error ||
+            (typeof errMsg === "string" ? errMsg : errMsg ? JSON.stringify(errMsg) : null) ||
               `Content generation failed (HTTP ${contentRes.status})`,
           );
         }
@@ -217,8 +219,9 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
 
       if (!renderRes.ok) {
         const errData = await renderRes.json().catch(() => ({}));
+        const errMsg = (errData as Record<string, unknown>).error;
         throw new Error(
-          (errData as Record<string, string>).error ||
+          (typeof errMsg === "string" ? errMsg : errMsg ? JSON.stringify(errMsg) : null) ||
             `PPTX render failed (HTTP ${renderRes.status})`,
         );
       }

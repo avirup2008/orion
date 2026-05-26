@@ -220,6 +220,11 @@ async function callClaudeWithTool(
 
       const data = await res.json();
 
+      // Check for max_tokens truncation — tool_use may be incomplete
+      if (data.stop_reason === "max_tokens") {
+        console.warn(`Claude hit max_tokens (${maxTokens}) — tool_use response may be truncated`);
+      }
+
       // Extract tool_use block
       const toolBlock = data.content?.find(
         (b: { type: string }) => b.type === "tool_use",
@@ -233,7 +238,22 @@ async function callClaudeWithTool(
           console.warn("Claude returned text instead of tool_use, falling back to JSON parse");
           return JSON.parse(textBlock.text);
         }
+        // If we hit max_tokens, give a specific error
+        if (data.stop_reason === "max_tokens") {
+          throw new Error(
+            `Claude response was truncated (max_tokens=${maxTokens}). Try reducing slide count.`
+          );
+        }
         throw new Error("No tool_use block in Claude response");
+      }
+
+      // Validate the tool_use input is non-trivial
+      const inputStr = JSON.stringify(toolBlock.input);
+      console.log(`Tool_use raw input: ${inputStr.length} chars, stop_reason=${data.stop_reason}`);
+      if (inputStr.length < 10) {
+        throw new Error(
+          `Claude returned near-empty tool_use (${inputStr.length} chars). stop_reason=${data.stop_reason}`
+        );
       }
 
       // tool_use input is already a parsed JSON object — no string parsing needed!
@@ -349,9 +369,11 @@ export async function generateContent(
   apiKey: string,
 ): Promise<DeckContent> {
   const { system, user } = buildContentPrompt(req, outline);
-  // Scale max_tokens to slide count — ~800 tokens per slide, min 2048
+  // Scale max_tokens to slide count — ~1000 tokens per slide for tool_use
+  // (tool_use has ~200 tokens schema overhead vs raw text mode)
+  // Min 3000 to ensure even 3-slide batches have enough room
   const slideCount = outline.sections.reduce((n, s) => n + s.slides.length, 0);
-  const maxTokens = Math.min(8192, Math.max(2048, slideCount * 800));
+  const maxTokens = Math.min(8192, Math.max(3000, slideCount * 1000));
 
   // Use tool_use for guaranteed valid JSON — no more parsing failures!
   let parsed: unknown;
