@@ -140,6 +140,169 @@ async function callClaude(
   throw lastError || new Error("Claude API call failed after retries");
 }
 
+/* ── Claude API Call with Tool Use ─────────────────────────────── */
+
+/**
+ * Call Claude with tool_use to get guaranteed valid JSON.
+ * Instead of asking Claude to output raw JSON (fragile), we define a
+ * "tool" with a JSON Schema and Claude returns structured tool_use
+ * blocks with syntactically valid JSON every time.
+ */
+async function callClaudeWithTool(
+  system: string,
+  user: string,
+  apiKey: string,
+  toolName: string,
+  toolDescription: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  inputSchema: Record<string, any>,
+  maxTokens: number = 8192,
+  model: string = "claude-sonnet-4-6",
+): Promise<unknown> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const timeoutMs = model.includes("haiku") ? 45_000 : 50_000;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          system,
+          messages: [{ role: "user", content: user }],
+          tools: [{
+            name: toolName,
+            description: toolDescription,
+            input_schema: inputSchema,
+          }],
+          tool_choice: { type: "tool", name: toolName },
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      // Rate limit — wait and retry
+      if (res.status === 429) {
+        const retryAfter = res.headers.get("retry-after");
+        const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : RETRY_DELAY_MS * (attempt + 1);
+        console.warn(`Claude rate limited (429). Retrying in ${waitMs}ms`);
+        if (attempt < MAX_RETRIES) {
+          await sleep(waitMs);
+          continue;
+        }
+        throw new Error("Rate limited by Claude API. Please try again in a few minutes.");
+      }
+
+      // Server errors — retry
+      if (res.status >= 500 && attempt < MAX_RETRIES) {
+        console.warn(`Claude server error ${res.status}. Retrying...`);
+        await sleep(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
+
+      if (!res.ok) {
+        const err = await res.text();
+        if (res.status === 401) {
+          throw new Error("Invalid API key. Check ANTHROPIC_API_KEY in Vercel environment variables.");
+        }
+        throw new Error(`Claude API error ${res.status}: ${err.slice(0, 200)}`);
+      }
+
+      const data = await res.json();
+
+      // Extract tool_use block
+      const toolBlock = data.content?.find(
+        (b: { type: string }) => b.type === "tool_use",
+      );
+      if (!toolBlock?.input) {
+        // Fallback: check for text block (shouldn't happen with tool_choice forced)
+        const textBlock = data.content?.find(
+          (b: { type: string }) => b.type === "text",
+        );
+        if (textBlock?.text) {
+          console.warn("Claude returned text instead of tool_use, falling back to JSON parse");
+          return JSON.parse(textBlock.text);
+        }
+        throw new Error("No tool_use block in Claude response");
+      }
+
+      // tool_use input is already a parsed JSON object — no string parsing needed!
+      return toolBlock.input;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      if (lastError.name === "AbortError" || lastError.message.includes("aborted")) {
+        const limitSec = model.includes("haiku") ? 48 : 55;
+        throw new Error(
+          `Claude took too long to respond (>${limitSec}s). Try reducing slide count or simplifying input.`
+        );
+      }
+
+      if (
+        attempt < MAX_RETRIES &&
+        (lastError.message.includes("fetch") ||
+          lastError.message.includes("network") ||
+          lastError.message.includes("ECONNRESET"))
+      ) {
+        console.warn(`Network error. Retrying: ${lastError.message}`);
+        await sleep(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
+      throw lastError;
+    }
+  }
+
+  throw lastError || new Error("Claude API call failed after retries");
+}
+
+/**
+ * JSON Schema for the generate_slides tool.
+ * Kept intentionally loose (body as free-form object) because Zod
+ * handles pattern-specific validation. The tool_use guarantees
+ * syntactically valid JSON — Zod handles semantic validation.
+ */
+const SLIDES_TOOL_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    slides: {
+      type: "array" as const,
+      items: {
+        type: "object" as const,
+        properties: {
+          id: { type: "string" as const },
+          sectionLabel: { type: "string" as const },
+          governingThought: { type: "string" as const },
+          subtitle: { type: "string" as const },
+          insightBar: {
+            type: "object" as const,
+            properties: {
+              label: { type: "string" as const },
+              detail: { type: "string" as const },
+            },
+            required: ["label", "detail"],
+          },
+          body: {
+            type: "object" as const,
+            description: "Slide body with pattern-specific fields. Must include 'pattern' field.",
+          },
+        },
+        required: ["id", "sectionLabel", "body"],
+      },
+    },
+  },
+  required: ["slides"],
+};
+
 /* ── Phase 1: Generate Outline ──────────────────────────────────── */
 
 export async function generateOutline(
@@ -187,25 +350,39 @@ export async function generateContent(
 ): Promise<DeckContent> {
   const { system, user } = buildContentPrompt(req, outline);
   // Scale max_tokens to slide count — ~800 tokens per slide, min 2048
-  // Complex patterns (comparison-matrix, gated-flow, architecture-flow) need 600-900 tokens each.
-  // Previous budget of 500/slide caused truncation → malformed JSON.
   const slideCount = outline.sections.reduce((n, s) => n + s.slides.length, 0);
   const maxTokens = Math.min(8192, Math.max(2048, slideCount * 800));
 
-  const raw = await callClaude(system, user, apiKey, maxTokens);
-
-  // Diagnostic: log raw response stats for debugging JSON parse failures
-  console.log(`Content raw response: ${raw.length} chars, starts with: "${raw.slice(0, 80).replace(/\n/g, "\\n")}"`);
-
+  // Use tool_use for guaranteed valid JSON — no more parsing failures!
   let parsed: unknown;
   try {
-    parsed = extractJSON(raw);
-  } catch (e) {
-    // Log detailed diagnostics for debugging
-    console.error(`Content JSON extraction failed. Raw length: ${raw.length}`);
-    console.error(`First 300 chars: ${raw.slice(0, 300)}`);
-    console.error(`Last 300 chars: ${raw.slice(-300)}`);
-    throw new Error(`Failed to parse content JSON: ${e}`);
+    parsed = await callClaudeWithTool(
+      system,
+      user,
+      apiKey,
+      "generate_slides",
+      "Generate slide content for the proposal deck. Return all slides with their pattern-specific body content.",
+      SLIDES_TOOL_SCHEMA,
+      maxTokens,
+    );
+    console.log(`Content via tool_use: ${JSON.stringify(parsed).length} chars, ${
+      Array.isArray((parsed as Record<string, unknown>)?.slides)
+        ? (parsed as Record<string, unknown[]>).slides.length + " slides"
+        : "no slides array"
+    }`);
+  } catch (toolErr) {
+    // Fallback: try raw text mode if tool_use fails for any reason
+    console.warn(`Tool use failed (${toolErr}), falling back to text mode`);
+    const raw = await callClaude(system, user, apiKey, maxTokens);
+    console.log(`Content fallback raw: ${raw.length} chars`);
+    try {
+      parsed = extractJSON(raw);
+    } catch (e) {
+      console.error(`Content JSON extraction failed. Raw length: ${raw.length}`);
+      console.error(`First 300 chars: ${raw.slice(0, 300)}`);
+      console.error(`Last 300 chars: ${raw.slice(-300)}`);
+      throw new Error(`Failed to parse content JSON: ${e}`);
+    }
   }
 
   const result = validateContent(parsed);
