@@ -176,14 +176,16 @@ export function deduplicateQuestions(
 // ── PDF text extraction ──
 
 export async function extractTextFromPdf(file: File): Promise<string> {
-  const { getDocument, GlobalWorkerOptions } = await import("pdfjs-dist");
-  GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url
-  ).toString();
+  const pdfjsLib = await import("pdfjs-dist");
+  const { getDocument, GlobalWorkerOptions } = pdfjsLib;
+
+  // pdfjs-dist v5 worker setup — use CDN to avoid bundler issues with worker files
+  if (!GlobalWorkerOptions.workerSrc) {
+    GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs`;
+  }
 
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await getDocument({ data: arrayBuffer }).promise;
+  const pdf = await getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
   const pages: string[] = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {
