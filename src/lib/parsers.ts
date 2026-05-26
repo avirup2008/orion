@@ -173,31 +173,24 @@ export function deduplicateQuestions(
   );
 }
 
-// ── PDF text extraction ──
+// ── PDF text extraction (server-side via API route) ──
 
 export async function extractTextFromPdf(file: File): Promise<string> {
-  const pdfjsLib = await import("pdfjs-dist");
-  const { getDocument, GlobalWorkerOptions } = pdfjsLib;
+  const formData = new FormData();
+  formData.append("file", file);
 
-  // pdfjs-dist v5 worker setup — use CDN to avoid bundler issues with worker files
-  if (!GlobalWorkerOptions.workerSrc) {
-    GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs`;
+  const res = await fetch("/api/parse/pdf", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "PDF parsing failed" }));
+    throw new Error(err.error || `PDF parsing failed (${res.status})`);
   }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-  const pages: string[] = [];
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const text = content.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .join(" ");
-    pages.push(text);
-  }
-
-  return pages.join("\n");
+  const { text } = await res.json();
+  return text;
 }
 
 // ── Excel/CSV file reading ──

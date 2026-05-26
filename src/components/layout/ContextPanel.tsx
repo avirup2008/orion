@@ -128,21 +128,18 @@ export default function ContextPanel({
           const result = await mammoth.extractRawText({ arrayBuffer });
           content = result.value;
         } else if (file.name.endsWith(".pdf")) {
-          const pdfjsLib = await import("pdfjs-dist");
-          pdfjsLib.GlobalWorkerOptions.workerSrc = "";
-          const arrayBuffer = await file.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-          const pages: string[] = [];
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const tc = await page.getTextContent();
-            pages.push(
-              tc.items
-                .map((item) => ("str" in item ? item.str : ""))
-                .join(" ")
-            );
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await fetch("/api/parse/pdf", {
+            method: "POST",
+            body: formData,
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "PDF parsing failed" }));
+            throw new Error(err.error || "PDF parsing failed");
           }
-          content = pages.join("\n\n");
+          const { text: pdfText } = await res.json();
+          content = pdfText;
         } else {
           content = await file.text();
         }
