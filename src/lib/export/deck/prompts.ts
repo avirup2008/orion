@@ -83,15 +83,16 @@ Return a JSON object with this exact structure:
           "id": "unique-slide-id",
           "pattern": "pattern-type",
           "governingThought": "The assertive claim this slide proves",
-          "subtitle": "Supporting italic line that expands on the thought",
-          "insightBar": "1 line: client-specific context with real numbers",
-          "contentBrief": "1-2 sentences MAX: what data to show"
+          "subtitle": "Short italic supporting line",
+          "insightBar": "Client-specific fact with a number"
         }
       ]
     }
   ],
   "totalSlides": 15
 }
+
+NOTE: Keep each slide object MINIMAL — id, pattern, governingThought, subtitle, insightBar only. Do NOT add extra fields. Brevity is critical.
 
 ## Rules
 1. First slide is always section "COVER" with a single "cover" pattern slide

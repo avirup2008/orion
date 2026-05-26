@@ -281,9 +281,10 @@ Use cases: ${piq.useCases.join('; ')}`);
   let output = sections.join('\n\n');
 
   // Aggressive word budget — outline only needs structural knowledge.
-  // Target: ~1500 words max. Drop sections from the end until under budget.
+  // Target: ~800 words max. Keeps prompt small so Haiku can respond
+  // within 48s at 4096 max_tokens. Drop sections from the end until under budget.
   let words = output.split(/\s+/).length;
-  while (words > 1600 && sections.length > 3) {
+  while (words > 800 && sections.length > 2) {
     sections.pop();
     output = sections.join('\n\n');
     words = output.split(/\s+/).length;
