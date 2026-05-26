@@ -429,7 +429,11 @@ const MetricsDashboardBodySchema = z.preprocess(
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const o = val as Record<string, unknown>;
       // Claude may use alternate names for the metrics array
-      const metrics = o.metrics ?? o.kpis ?? o.stats ?? o.figures ?? o.items ?? o.data ?? o.numbers ?? [];
+      let metrics = o.metrics ?? o.kpis ?? o.stats ?? o.figures ?? o.items ?? o.data ?? o.numbers ?? [];
+      // Ensure at least one metric — add placeholder if empty
+      if (Array.isArray(metrics) && metrics.length === 0) {
+        metrics = [{ value: "—", label: "Metric pending" }];
+      }
       return { ...o, metrics };
     }
     return val;
@@ -501,15 +505,28 @@ const SlideBodySchema = z.any().transform((val, ctx) => {
   }
   const schema = PATTERN_SCHEMAS[pattern];
   if (!schema) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown slide pattern: "${pattern}". Expected one of: ${Object.keys(PATTERN_SCHEMAS).join(", ")}` });
-    return z.NEVER;
+    // Unknown pattern → downgrade to quote-callout as graceful fallback
+    console.warn(`Unknown slide pattern "${pattern}", downgrading to quote-callout`);
+    return {
+      pattern: "quote-callout" as const,
+      quote: val?.governingThought || val?.title || `Content for ${pattern} pattern`,
+      attribution: "",
+      role: "",
+    };
   }
   const result = schema.safeParse(val);
   if (!result.success) {
-    for (const issue of result.error.issues) {
-      ctx.addIssue(issue);
-    }
-    return z.NEVER;
+    // Log the validation error but DON'T fail the whole batch.
+    // Downgrade to quote-callout with whatever content we can salvage.
+    const issues = result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ");
+    console.warn(`Slide body validation failed for "${pattern}": ${issues}. Downgrading to quote-callout.`);
+    return {
+      pattern: "quote-callout" as const,
+      quote: val?.governingThought || val?.title || val?.quote || `${pattern} slide content`,
+      attribution: "",
+      role: "",
+      context: `Original pattern: ${pattern} — validation error: ${issues}`,
+    };
   }
   return result.data;
 });
