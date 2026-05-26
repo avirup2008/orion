@@ -65,7 +65,7 @@ const DetailItemsSchema = z.preprocess(
 
 /* ── Pattern Types ──────────────────────────────────────────────── */
 
-const PatternTypeSchema = z.enum([
+const VALID_PATTERNS = [
   "cover",
   "waterfall",
   "gated-flow",
@@ -77,7 +77,11 @@ const PatternTypeSchema = z.enum([
   "timeline",
   "metrics-dashboard",
   "quote-callout",
-]);
+] as const;
+
+const VALID_PATTERN_SET = new Set<string>(VALID_PATTERNS);
+
+const PatternTypeSchema = z.enum(VALID_PATTERNS);
 
 /* ── Phase 1: Outline ───────────────────────────────────────────── */
 
@@ -92,14 +96,16 @@ const SlideOutlineSchema = z.object({
 
 const DeckSectionSchema = z.preprocess(
   (val) => {
-    // Filter out incomplete slides from truncated output
+    // Filter out incomplete slides AND slides with invalid patterns
+    // (e.g. AI sometimes invents "section-divider" which is render-only)
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const o = val as Record<string, unknown>;
       if (Array.isArray(o.slides)) {
         o.slides = (o.slides as Record<string, unknown>[]).filter((s) =>
           s && typeof s === "object" &&
           typeof s.id === "string" &&
-          typeof s.pattern === "string",
+          typeof s.pattern === "string" &&
+          VALID_PATTERN_SET.has(s.pattern as string),
         );
       }
     }
