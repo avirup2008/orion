@@ -131,7 +131,7 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
     try {
       // --- Step 2: Generate Content (batched for large decks) ---
       const allSlides = approvedOutline.sections.flatMap((s: { slides: unknown[] }) => s.slides);
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = 3;
       const needsBatching = allSlides.length > BATCH_SIZE;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allContentSlides: any[] = [];

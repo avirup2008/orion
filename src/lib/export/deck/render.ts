@@ -41,9 +41,9 @@ async function callClaude(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // Haiku (outline) is fast → 48s timeout. Sonnet (content) is slower → 55s.
-      // Both must complete before Vercel's 60s function limit.
-      const timeoutMs = model.includes("haiku") ? 48_000 : 55_000;
+      // Haiku (outline) is fast → 45s timeout. Sonnet (content) → 50s.
+      // Must leave ~10s headroom for Vercel function overhead (60s limit).
+      const timeoutMs = model.includes("haiku") ? 45_000 : 50_000;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -186,9 +186,9 @@ export async function generateContent(
   apiKey: string,
 ): Promise<DeckContent> {
   const { system, user } = buildContentPrompt(req, outline);
-  // Scale max_tokens to slide count — ~400 tokens per slide
+  // Scale max_tokens to slide count — ~500 tokens per slide, min 2048
   const slideCount = outline.sections.reduce((n, s) => n + s.slides.length, 0);
-  const maxTokens = Math.min(16384, Math.max(4096, slideCount * 500));
+  const maxTokens = Math.min(8192, Math.max(2048, slideCount * 500));
 
   const raw = await callClaude(system, user, apiKey, maxTokens);
 
