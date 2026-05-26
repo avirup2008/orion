@@ -455,6 +455,44 @@ export function validateContent(data: unknown) {
 }
 
 /**
+ * Find the outermost balanced JSON object/array in a string using
+ * bracket-depth traversal. This is far more reliable than lastIndexOf
+ * because it correctly ignores brackets inside strings and stops at
+ * the MATCHING close bracket — not some stray "}" in trailing prose.
+ */
+function findBalancedJSON(text: string): string | null {
+  const startIdx = text.search(/[{[]/);
+  if (startIdx < 0) return null;
+
+  const openChar = text[startIdx];
+  const closeChar = openChar === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = startIdx; i < text.length; i++) {
+    const ch = text[i];
+
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === "{" || ch === "[") depth++;
+    if (ch === "}" || ch === "]") {
+      depth--;
+      if (depth === 0 && ch === closeChar) {
+        return text.slice(startIdx, i + 1);
+      }
+    }
+  }
+
+  // Unclosed — return from start to end (truncated output, repair will close it)
+  return text.slice(startIdx);
+}
+
+/**
  * Repair common JSON issues from LLM output:
  * - Trailing commas before ] or }
  * - Single-line // comments
@@ -471,7 +509,6 @@ function repairJSON(raw: string): string {
   s = s.replace(/,\s*([\]}])/g, "$1");
 
   // Fix unescaped control characters inside strings
-  // Replace actual newlines/tabs inside JSON string values
   s = s.replace(/"(?:[^"\\]|\\.)*"/g, (match) => {
     return match
       .replace(/\n/g, "\\n")
@@ -494,7 +531,6 @@ function repairJSON(raw: string): string {
     if (ch === "[") brackets++;
     if (ch === "]") brackets--;
   }
-  // Close any unclosed brackets/braces (truncated output)
   while (brackets > 0) { s += "]"; brackets--; }
   while (braces > 0) { s += "}"; braces--; }
 
@@ -502,37 +538,35 @@ function repairJSON(raw: string): string {
 }
 
 /**
- * Extract JSON from a Claude response that may contain markdown fencing.
- * Applies repair for common LLM JSON errors before parsing.
+ * Extract JSON from a Claude response that may contain markdown fencing,
+ * trailing prose, or syntax errors. Uses bracket-depth matching to isolate
+ * the JSON object, then applies repair for common LLM quirks.
  */
 export function extractJSON(text: string): unknown {
-  // Try to find JSON in code blocks first
+  // Step 1: Strip markdown code fences if present
+  let source = text;
   const fenced = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  const candidate = fenced
-    ? fenced[1].trim()
-    : (() => {
-        const trimmed = text.trim();
-        const start = trimmed.search(/[{[]/);
-        const end = Math.max(trimmed.lastIndexOf("}"), trimmed.lastIndexOf("]"));
-        if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
-        return trimmed;
-      })();
+  if (fenced) {
+    source = fenced[1].trim();
+  }
 
-  // Try parsing as-is first (fast path)
+  // Step 2: Find the balanced JSON object/array using depth-tracking
+  // This correctly ignores stray brackets in trailing prose
+  const candidate = findBalancedJSON(source) || source.trim();
+
+  // Step 3: Try parsing as-is (fast path for well-formed JSON)
   try {
     return JSON.parse(candidate);
   } catch {
     // Fall through to repair
   }
 
-  // Repair and retry
+  // Step 4: Repair and retry
   const repaired = repairJSON(candidate);
   try {
     return JSON.parse(repaired);
   } catch (e) {
-    // Log both for diagnostics
-    console.error("JSON repair failed. First 500 chars of raw:", candidate.slice(0, 500));
-    console.error("First 500 chars of repaired:", repaired.slice(0, 500));
+    console.error("JSON extraction failed. First 500 chars:", candidate.slice(0, 500));
     throw e;
   }
 }

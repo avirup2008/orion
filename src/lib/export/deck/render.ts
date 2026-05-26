@@ -56,7 +56,11 @@ async function callClaude(
           model,
           max_tokens: maxTokens,
           system,
-          messages: [{ role: "user", content: user }],
+          messages: [
+            { role: "user", content: user },
+            // Prefill forces Claude to start mid-JSON — no preamble or prose
+            { role: "assistant", content: "{" },
+          ],
         }),
         signal: controller.signal,
       });
@@ -100,7 +104,8 @@ async function callClaude(
       if (!textBlock?.text) {
         throw new Error("No text in Claude response");
       }
-      return textBlock.text;
+      // Prepend the "{" we used as prefill to get complete JSON
+      return "{" + textBlock.text;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
@@ -138,24 +143,42 @@ export async function generateOutline(
   const { system, user } = buildOutlinePrompt(req);
   // Haiku for outline — 3x faster, and outline is just structure (patterns,
   // sections, governing thoughts). Sonnet reserved for content where depth matters.
-  const raw = await callClaude(system, user, apiKey, 4096, "claude-haiku-4-5-20251001");
 
-  let parsed: unknown;
-  try {
-    parsed = extractJSON(raw);
-  } catch (e) {
-    throw new Error(`Failed to parse outline JSON: ${e}`);
+  // Try up to 2 attempts — if JSON parse fails, retry with stricter prompt
+  for (let jsonAttempt = 0; jsonAttempt < 2; jsonAttempt++) {
+    const prompt = jsonAttempt === 0
+      ? user
+      : user + "\n\nCRITICAL: Your previous response had malformed JSON. Return ONLY a valid JSON object. The very first character must be { and the last must be }. No markdown, no explanation, no text outside the JSON.";
+
+    const raw = await callClaude(system, prompt, apiKey, 4096, "claude-haiku-4-5-20251001");
+
+    let parsed: unknown;
+    try {
+      parsed = extractJSON(raw);
+    } catch (e) {
+      if (jsonAttempt === 0) {
+        console.warn("Outline JSON parse failed, retrying with stricter prompt:", e);
+        continue;
+      }
+      throw new Error(`Failed to parse outline JSON after retry: ${e}`);
+    }
+
+    const result = validateOutline(parsed);
+    if (!result.success) {
+      const issues = result.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      if (jsonAttempt === 0) {
+        console.warn("Outline validation failed, retrying:", issues);
+        continue;
+      }
+      throw new Error(`Invalid outline structure: ${issues}`);
+    }
+
+    return result.data as DeckOutline;
   }
 
-  const result = validateOutline(parsed);
-  if (!result.success) {
-    const issues = result.error.issues
-      .map((i) => `${i.path.join(".")}: ${i.message}`)
-      .join("; ");
-    throw new Error(`Invalid outline structure: ${issues}`);
-  }
-
-  return result.data as DeckOutline;
+  throw new Error("Outline generation failed after retries");
 }
 
 /* ── Phase 2: Generate Content ──────────────────────────────────── */
@@ -174,25 +197,42 @@ export async function generateContent(
   // Scale max_tokens to slide count — ~400 tokens per slide
   const slideCount = outline.sections.reduce((n, s) => n + s.slides.length, 0);
   const maxTokens = Math.min(16384, Math.max(4096, slideCount * 500));
-  const raw = await callClaude(system, user, apiKey, maxTokens);
 
-  let parsed: unknown;
-  try {
-    parsed = extractJSON(raw);
-  } catch (e) {
-    throw new Error(`Failed to parse content JSON: ${e}`);
+  for (let jsonAttempt = 0; jsonAttempt < 2; jsonAttempt++) {
+    const prompt = jsonAttempt === 0
+      ? user
+      : user + "\n\nCRITICAL: Your previous response had malformed JSON. Return ONLY a valid JSON object. The very first character must be { and the last must be }. No markdown, no explanation, no text outside the JSON.";
+
+    const raw = await callClaude(system, prompt, apiKey, maxTokens);
+
+    let parsed: unknown;
+    try {
+      parsed = extractJSON(raw);
+    } catch (e) {
+      if (jsonAttempt === 0) {
+        console.warn("Content JSON parse failed, retrying:", e);
+        continue;
+      }
+      throw new Error(`Failed to parse content JSON after retry: ${e}`);
+    }
+
+    const result = validateContent(parsed);
+    if (!result.success) {
+      logContentDiagnostics(parsed);
+      const issues = result.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      if (jsonAttempt === 0) {
+        console.warn("Content validation failed, retrying:", issues);
+        continue;
+      }
+      throw new Error(`Invalid content structure: ${issues}`);
+    }
+
+    return result.data as DeckContent;
   }
 
-  const result = validateContent(parsed);
-  if (!result.success) {
-    logContentDiagnostics(parsed);
-    const issues = result.error.issues
-      .map((i) => `${i.path.join(".")}: ${i.message}`)
-      .join("; ");
-    throw new Error(`Invalid content structure: ${issues}`);
-  }
-
-  return result.data as DeckContent;
+  throw new Error("Content generation failed after retries");
 }
 
 function logContentDiagnostics(parsed: unknown) {

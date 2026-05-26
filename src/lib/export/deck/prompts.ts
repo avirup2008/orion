@@ -116,7 +116,10 @@ NEVER include any of these slide types — they are empty calories in a consulti
 - Repeat slides that say the same thing as an earlier slide in different words
 
 Instead, every slide must pass this test: "Does this slide contain a SPECIFIC CLAIM backed by CONCRETE DATA that the previous slide did not?"
-If the answer is no, the slide is filler and should be replaced with substantive content.`;
+If the answer is no, the slide is filler and should be replaced with substantive content.
+
+## OUTPUT FORMAT — CRITICAL
+Output ONLY the raw JSON object. No markdown code fences, no preamble text, no explanation after the JSON. The first character of your response must be the opening brace of the JSON object and nothing may follow the closing brace.`;
 
   const user = buildOutlineUserMessage(req);
 
@@ -304,7 +307,10 @@ Return a JSON object:
   ]
 }
 
-IMPORTANT: The "slides" array must have one entry per slide in the outline, in the same order. The "id" must match the outline's slide id.`;
+IMPORTANT: The "slides" array must have one entry per slide in the outline, in the same order. The "id" must match the outline's slide id.
+
+## OUTPUT FORMAT — CRITICAL
+Output ONLY the raw JSON object. No markdown code fences, no preamble text, no explanation after the JSON. The first character of your response must be the opening brace of the JSON object and nothing may follow the closing brace.`;
 
   const user = buildContentUserMessage(req, outline);
 

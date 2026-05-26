@@ -18,6 +18,7 @@
  */
 
 import { NextRequest } from "next/server";
+import { extractJSON } from "@/lib/export/deck/validation";
 
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
@@ -142,27 +143,18 @@ export async function POST(req: NextRequest) {
     const result = await response.json();
     const content = result.content?.[0]?.text || "[]";
 
-    // Parse the JSON response
+    // Parse the JSON response using shared robust extractor
     let parsed: {
       items?: Array<{ text: string; type: string }>;
       clientContext?: Record<string, unknown>;
     };
     try {
-      // Handle potential markdown fencing
-      const cleaned = content.replace(/```(?:json)?\s*\n?/g, "").replace(/\n?```/g, "").trim();
-      const startIdx = cleaned.indexOf("{");
-      const endIdx = cleaned.lastIndexOf("}");
-      if (startIdx >= 0 && endIdx > startIdx) {
-        parsed = JSON.parse(cleaned.slice(startIdx, endIdx + 1));
+      const extracted = extractJSON(content);
+      // Handle both object and array formats
+      if (Array.isArray(extracted)) {
+        parsed = { items: extracted as Array<{ text: string; type: string }> };
       } else {
-        // Might be just an array (old format fallback)
-        const arrStart = cleaned.indexOf("[");
-        const arrEnd = cleaned.lastIndexOf("]");
-        if (arrStart >= 0 && arrEnd > arrStart) {
-          parsed = { items: JSON.parse(cleaned.slice(arrStart, arrEnd + 1)) };
-        } else {
-          parsed = JSON.parse(cleaned);
-        }
+        parsed = extracted as typeof parsed;
       }
     } catch {
       console.error("Failed to parse AI response:", content.slice(0, 500));
