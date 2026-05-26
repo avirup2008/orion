@@ -148,9 +148,9 @@ function buildOutlineUserMessage(req: DeckRequest): string {
     parts.push(`Analyze these to extract requirements, evaluation criteria, pain points, and timeline constraints.`);
     req.documents!.forEach((doc) => {
       parts.push(`\n### ${doc.name} (${doc.wordCount} words)`);
-      // Outline only needs the first 4000 chars — full content goes to content phase
-      const content = doc.content.length > 4000
-        ? doc.content.slice(0, 4000) + "\n\n[... see full document in content phase ...]"
+      // Outline only needs a summary — full content goes to content phase
+      const content = doc.content.length > 2000
+        ? doc.content.slice(0, 2000) + "\n\n[... truncated — full document in content phase ...]"
         : doc.content;
       parts.push(content);
     });

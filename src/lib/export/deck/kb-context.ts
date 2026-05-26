@@ -280,11 +280,13 @@ Use cases: ${piq.useCases.join('; ')}`);
   // ── Assemble & trim to budget ─────────────────────────────────
   let output = sections.join('\n\n');
 
-  // Rough word count check — trim from the end if over ~3000 words
-  const words = output.split(/\s+/).length;
-  if (words > 3200) {
-    // Drop platform capabilities section to save space
-    output = sections.slice(0, -1).join('\n\n');
+  // Aggressive word budget — outline only needs structural knowledge.
+  // Target: ~1500 words max. Drop sections from the end until under budget.
+  let words = output.split(/\s+/).length;
+  while (words > 1600 && sections.length > 3) {
+    sections.pop();
+    output = sections.join('\n\n');
+    words = output.split(/\s+/).length;
   }
 
   return output;
