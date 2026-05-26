@@ -316,12 +316,33 @@ const ArchitectureFlowBodySchema = z.object({
 
 const ContentCardsBodySchema = z.object({
   pattern: z.literal("content-cards"),
-  cards: z.array(z.object({
-    title: z.string(),
-    body: z.string().default(""),
-    accentColor: z.string().optional(),
-    metric: z.object({ value: z.string(), label: z.string() }).optional(),
-  })).min(1),
+  cards: z.preprocess(
+    (val) => {
+      if (!Array.isArray(val)) return val;
+      return val.map((card) => {
+        if (card && typeof card === "object") {
+          const c = card as Record<string, unknown>;
+          // Coerce metric from string to {value, label}
+          if (typeof c.metric === "string") {
+            c.metric = { value: c.metric, label: "" };
+          }
+          // Coerce title/body from alternate field names
+          return {
+            ...c,
+            title: c.title ?? c.heading ?? c.name ?? c.label ?? "Card",
+            body: c.body ?? c.description ?? c.detail ?? c.text ?? c.content ?? "",
+          };
+        }
+        return card;
+      });
+    },
+    z.array(z.object({
+      title: z.string(),
+      body: z.string().default(""),
+      accentColor: z.string().optional(),
+      metric: z.object({ value: z.string(), label: z.string() }).optional(),
+    })).min(1),
+  ),
   columns: z.number().int().min(2).max(3).optional(),
 });
 
