@@ -122,6 +122,7 @@ const CoverBodySchema = z.preprocess(
       const o = val as Record<string, unknown>;
       return {
         ...o,
+        title: o.title ?? o.heading ?? o.headline ?? o.name ?? "Proposal",
         clientName: o.clientName ?? o.client ?? o.companyName ?? "Client",
         preparedBy: o.preparedBy ?? o.author ?? o.prepared_by ?? "EyeOn",
         date: o.date ?? new Date().toISOString().split("T")[0],
@@ -131,7 +132,7 @@ const CoverBodySchema = z.preprocess(
   },
   z.object({
     pattern: z.literal("cover"),
-    title: z.string(),
+    title: z.string().default("Proposal"),
     subtitle: z.string().default(""),
     clientName: z.string().default("Client"),
     date: z.string().default(new Date().toISOString().split("T")[0]),
@@ -212,9 +213,26 @@ const ArchitectureFlowBodySchema = z.object({
       return val.map((col) => {
         if (col && typeof col === "object") {
           const c = col as Record<string, unknown>;
+          // Coerce cards from strings to objects
+          let cards = c.cards ?? c.items ?? c.components ?? [];
+          if (Array.isArray(cards)) {
+            cards = (cards as unknown[]).map((card) => {
+              if (typeof card === "string") return { title: card, subtitle: "" };
+              if (card && typeof card === "object") {
+                const cd = card as Record<string, unknown>;
+                return {
+                  ...cd,
+                  title: cd.title ?? cd.name ?? cd.label ?? cd.text ?? "Card",
+                  subtitle: cd.subtitle ?? cd.description ?? cd.detail ?? "",
+                };
+              }
+              return { title: String(card ?? "Card"), subtitle: "" };
+            });
+          }
           return {
             ...c,
             zoneLabel: c.zoneLabel ?? c.zone ?? c.label ?? c.title ?? c.name ?? "Zone",
+            cards,
           };
         }
         return col;
@@ -323,33 +341,44 @@ const TimelineBodySchema = z.object({
   totalDuration: z.string().optional(),
 });
 
-const MetricsDashboardBodySchema = z.object({
-  pattern: z.literal("metrics-dashboard"),
-  metrics: z.preprocess(
-    (val) => {
-      if (!Array.isArray(val)) return val;
-      return val.map((m) => {
-        if (m && typeof m === "object") {
-          const mt = m as Record<string, unknown>;
-          return {
-            value: mt.value ?? mt.number ?? mt.metric ?? mt.stat ?? mt.figure ?? "",
-            label: mt.label ?? mt.title ?? mt.name ?? mt.description ?? "",
-            sublabel: mt.sublabel ?? mt.subtitle ?? mt.detail ?? undefined,
-            color: mt.color ?? mt.accentColor ?? undefined,
-          };
-        }
-        return m;
-      });
-    },
-    z.array(z.object({
-      value: z.preprocess((v) => String(v ?? ""), z.string()),
-      label: z.string().default(""),
-      sublabel: z.string().optional(),
-      color: z.string().optional(),
-    })).min(1),
-  ),
-  bullets: z.array(z.string()).optional(),
-});
+const MetricsDashboardBodySchema = z.preprocess(
+  (val) => {
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const o = val as Record<string, unknown>;
+      // Claude may use alternate names for the metrics array
+      const metrics = o.metrics ?? o.kpis ?? o.stats ?? o.figures ?? o.items ?? o.data ?? o.numbers ?? [];
+      return { ...o, metrics };
+    }
+    return val;
+  },
+  z.object({
+    pattern: z.literal("metrics-dashboard"),
+    metrics: z.preprocess(
+      (val) => {
+        if (!Array.isArray(val)) return val;
+        return val.map((m) => {
+          if (m && typeof m === "object") {
+            const mt = m as Record<string, unknown>;
+            return {
+              value: mt.value ?? mt.number ?? mt.metric ?? mt.stat ?? mt.figure ?? "",
+              label: mt.label ?? mt.title ?? mt.name ?? mt.description ?? "",
+              sublabel: mt.sublabel ?? mt.subtitle ?? mt.detail ?? undefined,
+              color: mt.color ?? mt.accentColor ?? undefined,
+            };
+          }
+          return m;
+        });
+      },
+      z.array(z.object({
+        value: z.preprocess((v) => String(v ?? ""), z.string()),
+        label: z.string().default(""),
+        sublabel: z.string().optional(),
+        color: z.string().optional(),
+      })).min(1),
+    ),
+    bullets: z.array(z.string()).optional(),
+  }),
+);
 
 const QuoteCalloutBodySchema = z.object({
   pattern: z.literal("quote-callout"),
