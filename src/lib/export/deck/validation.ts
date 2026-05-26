@@ -455,21 +455,84 @@ export function validateContent(data: unknown) {
 }
 
 /**
+ * Repair common JSON issues from LLM output:
+ * - Trailing commas before ] or }
+ * - Single-line // comments
+ * - Unescaped newlines inside string values
+ * - Truncated output (auto-close brackets)
+ */
+function repairJSON(raw: string): string {
+  let s = raw;
+
+  // Remove single-line comments (outside strings — naive but catches most cases)
+  s = s.replace(/^\s*\/\/.*$/gm, "");
+
+  // Remove trailing commas: ,] or ,}
+  s = s.replace(/,\s*([\]}])/g, "$1");
+
+  // Fix unescaped control characters inside strings
+  // Replace actual newlines/tabs inside JSON string values
+  s = s.replace(/"(?:[^"\\]|\\.)*"/g, (match) => {
+    return match
+      .replace(/\n/g, "\\n")
+      .replace(/\r/g, "\\r")
+      .replace(/\t/g, "\\t");
+  });
+
+  // Auto-close truncated JSON: count unmatched brackets
+  let braces = 0;
+  let brackets = 0;
+  let inString = false;
+  let escape = false;
+  for (const ch of s) {
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") braces++;
+    if (ch === "}") braces--;
+    if (ch === "[") brackets++;
+    if (ch === "]") brackets--;
+  }
+  // Close any unclosed brackets/braces (truncated output)
+  while (brackets > 0) { s += "]"; brackets--; }
+  while (braces > 0) { s += "}"; braces--; }
+
+  return s;
+}
+
+/**
  * Extract JSON from a Claude response that may contain markdown fencing.
+ * Applies repair for common LLM JSON errors before parsing.
  */
 export function extractJSON(text: string): unknown {
   // Try to find JSON in code blocks first
   const fenced = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  if (fenced) {
-    return JSON.parse(fenced[1].trim());
+  const candidate = fenced
+    ? fenced[1].trim()
+    : (() => {
+        const trimmed = text.trim();
+        const start = trimmed.search(/[{[]/);
+        const end = Math.max(trimmed.lastIndexOf("}"), trimmed.lastIndexOf("]"));
+        if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
+        return trimmed;
+      })();
+
+  // Try parsing as-is first (fast path)
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    // Fall through to repair
   }
-  // Try parsing the whole thing
-  const trimmed = text.trim();
-  // Find first { or [ and last } or ]
-  const start = trimmed.search(/[{[]/);
-  const end = Math.max(trimmed.lastIndexOf("}"), trimmed.lastIndexOf("]"));
-  if (start >= 0 && end > start) {
-    return JSON.parse(trimmed.slice(start, end + 1));
+
+  // Repair and retry
+  const repaired = repairJSON(candidate);
+  try {
+    return JSON.parse(repaired);
+  } catch (e) {
+    // Log both for diagnostics
+    console.error("JSON repair failed. First 500 chars of raw:", candidate.slice(0, 500));
+    console.error("First 500 chars of repaired:", repaired.slice(0, 500));
+    throw e;
   }
-  return JSON.parse(trimmed);
 }
