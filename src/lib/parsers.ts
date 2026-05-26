@@ -195,9 +195,23 @@ export async function extractTextFromPdf(file: File): Promise<string> {
 
 // ── AI-powered extraction (for PDFs / unstructured documents) ──
 
+export interface ExtractedClientContext {
+  companyName?: string;
+  industry?: string;
+  systems?: string[];
+  painPoints?: string[];
+  scale?: string;
+  modules?: string[];
+}
+
+export interface AIExtractionResult {
+  questions: RfpQuestion[];
+  clientContext: ExtractedClientContext | null;
+}
+
 export async function extractQuestionsWithAI(
   text: string
-): Promise<RfpQuestion[]> {
+): Promise<AIExtractionResult> {
   const res = await fetch("/api/parse/extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -209,18 +223,28 @@ export async function extractQuestionsWithAI(
     throw new Error(err.error || `AI extraction failed (${res.status})`);
   }
 
-  const { items } = await res.json() as {
+  const { items, clientContext } = await res.json() as {
     items: Array<{ text: string; type: string }>;
+    clientContext: ExtractedClientContext | null;
   };
 
-  return items.map((item, i) => ({
+  // Tag inferred items so the UI can show them differently
+  const questions = items.map((item, i) => ({
     id: generateQuestionId(),
     number: i + 1,
-    text: item.text,
+    text: item.type === "inferred"
+      ? `[Inferred] ${item.text}`
+      : item.type === "context"
+        ? `[Context] ${item.text}`
+        : item.text,
     category: categorizeQuestion(item.text),
     status: "queued" as const,
-    priority: "medium" as const,
+    priority: (item.type === "requirement" || item.type === "question"
+      ? "high"
+      : "medium") as "high" | "medium" | "low",
   }));
+
+  return { questions, clientContext };
 }
 
 // ── Excel/CSV file reading ──

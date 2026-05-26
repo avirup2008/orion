@@ -11,6 +11,7 @@ import {
   extractQuestionsWithAI,
   deduplicateQuestions,
 } from "@/lib/parsers";
+import type { ExtractedClientContext } from "@/lib/parsers";
 import type { RfpQuestion } from "@/types";
 import { CATEGORY_CONFIG } from "@/types";
 
@@ -26,6 +27,25 @@ export default function QuestionInput() {
   const [error, setError] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const autoFillClientContext = useCallback((ctx: ExtractedClientContext) => {
+    const updates: Record<string, string> = {};
+    if (ctx.companyName) updates.companyName = ctx.companyName;
+    if (ctx.industry) updates.industry = ctx.industry;
+    if (ctx.painPoints?.length) updates.painPoints = ctx.painPoints.join("; ");
+    if (ctx.scale) {
+      // Try to infer size category
+      const s = ctx.scale.toLowerCase();
+      if (s.includes("billion") || s.includes("enterprise") || s.includes("global") || s.includes("10,000") || s.includes("50,000")) {
+        updates.size = "Enterprise";
+      } else if (s.includes("million") || s.includes("mid")) {
+        updates.size = "Mid-Market";
+      }
+    }
+    if (Object.keys(updates).length > 0) {
+      dispatch({ type: "SET_CLIENT", client: updates });
+    }
+  }, [dispatch]);
 
   const handleParse = useCallback(() => {
     if (!pasteText.trim()) return;
@@ -64,7 +84,13 @@ export default function QuestionInput() {
         if (file.name.endsWith(".pdf")) {
           // Extract raw text, then use AI to identify actual questions/requirements
           const text = await extractTextFromPdf(file);
-          parsed = await extractQuestionsWithAI(text);
+          const result = await extractQuestionsWithAI(text);
+          parsed = result.questions;
+
+          // Auto-populate client context if AI extracted it
+          if (result.clientContext) {
+            autoFillClientContext(result.clientContext);
+          }
         } else if (
           file.name.endsWith(".xlsx") ||
           file.name.endsWith(".xls") ||
