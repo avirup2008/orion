@@ -12,6 +12,7 @@
 
 import type { DeckRequest, DeckOutline, PatternType } from "./types";
 import { getAvailablePatterns } from "./patterns";
+import { buildKBContext, buildKBContextForContent } from "./kb-context";
 
 /* ── Phase 1: Outline Strategist ────────────────────────────────── */
 
@@ -22,10 +23,13 @@ export function buildOutlinePrompt(req: DeckRequest): {
   const patterns = getAvailablePatterns().filter((p) => p !== "cover");
   const patternList = patterns.map((p) => `  - "${p}"`).join("\n");
 
-  const system = `You are a McKinsey-trained proposal strategist creating the outline for an Anaplan implementation proposal deck.
+  // Build KB context tailored to this request
+  const kbContext = buildKBContext(req);
+
+  const system = `You are a McKinsey-trained proposal strategist creating the outline for an Anaplan implementation proposal deck for EyeOn, a specialist Anaplan partner.
 
 ## Your Role
-You decide the NARRATIVE ARC of the proposal — what story to tell, what to emphasize, which data to highlight, and how to visually structure each point. You are NOT filling a template. You are crafting a unique, client-tailored argument.
+You decide the NARRATIVE ARC of the proposal — what story to tell, what to emphasize, which data to highlight, and how to visually structure each point. You are NOT filling a template. You are crafting a unique, client-tailored argument that positions EyeOn's specific expertise against this client's specific situation.
 
 ## Input Modes
 You may receive EITHER or BOTH of:
@@ -38,18 +42,16 @@ When you receive raw documents WITHOUT structured questions, YOU must:
 - Extract any specific numbers, timelines, or constraints mentioned
 - Build the deck as if you were a partner who just read the RFP and is designing the pitch
 
-## EyeOn Context
-EyeOn is a specialized Anaplan implementation partner. Their differentiators:
-- Deep Anaplan platform expertise (certified architects, model builders)
-- The Anaplan Way methodology (TAW phases)
-- PLANS modeling standard (Four Cornerstones)
-- Industry-specific accelerators
-- "YEARS AHEAD" brand positioning
+## EyeOn Domain Knowledge
+Use the following REAL knowledge about EyeOn and Anaplan to ground your narrative in specific, verifiable facts — never invent capabilities or metrics.
+
+${kbContext}
 
 ## Governing Thought Rules (McKinsey Signature)
 Every slide must have ONE assertive governing thought — the claim the slide proves.
 - NEVER generic: "Our approach to transformation" ← BAD
 - ALWAYS specific and assertive: "Three Phases, Two Gates — 16 Weeks to Production" ← GOOD
+- Use REAL numbers from the knowledge base: team sizes, delivery timelines, ROI metrics, module counts
 - Maximum one line. If it wraps, it's too long.
 - The visual on the slide must prove the governing thought.
 
@@ -57,16 +59,16 @@ Every slide must have ONE assertive governing thought — the claim the slide pr
 ${patternList}
 
 ## Pattern Selection Guide
-- "waterfall" — for scope breakdown, effort proportions, budget allocation
-- "gated-flow" — for phased delivery, methodology, project timeline with gates
-- "pyramid" — for maturity models, value layers, capability stacking
-- "staircase" — for capability progression, maturity journey, ascending value
-- "architecture-flow" — for system diagrams, integration architecture, data flow
-- "content-cards" — for feature lists, team profiles, capability summaries (2x2 or 3x3)
-- "comparison-matrix" — for competitive positioning, option evaluation
-- "timeline" — for project milestones, sprint cadences
-- "metrics-dashboard" — for KPIs, ROI numbers, outcome metrics
-- "quote-callout" — for testimonials, reference quotes, key statements
+- "waterfall" — for scope breakdown, effort proportions, budget allocation (e.g. "70% Recover, 20% Rewire, 10% Build")
+- "gated-flow" — for phased delivery with decision gates (e.g. Discovery → Design → Build → Test → Deploy)
+- "pyramid" — for maturity models, value layers, capability stacking (e.g. AI maturity pyramid)
+- "staircase" — for capability progression, ascending value delivery (e.g. adoption framework)
+- "architecture-flow" — for system diagrams, integration architecture, data flow (e.g. ERP → Snowflake → Anaplan → Execution)
+- "content-cards" — for feature lists, team profiles, module capabilities (2x2 or 3x3 with optional metrics)
+- "comparison-matrix" — for competitive positioning (e.g. EyeOn vs Big 4 vs DIY)
+- "timeline" — for project milestones, sprint cadences with duration labels
+- "metrics-dashboard" — for KPIs, ROI numbers, outcome metrics (use REAL metrics from KB)
+- "quote-callout" — for testimonials, reference quotes, key strategic statements
 
 ## Output Format
 Return a JSON object with this exact structure:
@@ -83,7 +85,7 @@ Return a JSON object with this exact structure:
           "governingThought": "The assertive claim this slide proves",
           "subtitle": "Supporting italic line that expands on the thought",
           "insightBar": "Client-specific context with real numbers",
-          "contentBrief": "Brief description of what data/content to show"
+          "contentBrief": "Brief description of what data/content to show — reference specific KB facts"
         }
       ]
     }
@@ -94,12 +96,14 @@ Return a JSON object with this exact structure:
 ## Rules
 1. First slide is always section "COVER" with a single "cover" pattern slide
 2. Aim for 12-25 slides total depending on proposal complexity
-3. Every governing thought must be assertive and specific to THIS client
-4. Every insight bar must reference the client by name or include specific numbers
+3. Every governing thought must be assertive and specific to THIS client — use their name, industry, and situation
+4. Every insight bar must reference the client by name or include specific numbers from their context or the KB
 5. Vary patterns — never use the same pattern 3 times in a row
 6. Section order should follow a persuasive arc: situation → approach → capabilities → proof → commercials → next steps
-7. Include at least one "metrics-dashboard" slide for ROI/outcomes
-8. If costing data exists, include a "waterfall" or "staircase" for cost breakdown`;
+7. Include at least one "metrics-dashboard" slide with REAL ROI metrics from the KB (not invented numbers)
+8. If costing data exists, include a "waterfall" or "staircase" for cost breakdown
+9. Include a "comparison-matrix" slide positioning EyeOn against Big 4 and DIY options
+10. Reference EyeOn's real differentiators: PLANS standard, Four Cornerstones, Anaplan Way methodology, specific accelerators`;
 
   const user = buildOutlineUserMessage(req);
 
@@ -195,20 +199,28 @@ export function buildContentPrompt(
   req: DeckRequest,
   outline: DeckOutline,
 ): { system: string; user: string } {
+  // Build lean KB context focused on content needs
+  const kbContext = buildKBContextForContent(req, outline);
+
   const system = `You are a senior proposal content composer creating the detailed slide content for an EyeOn Anaplan proposal deck.
 
 ## Your Role
-Given an outline with governing thoughts and pattern assignments, you generate the ACTUAL CONTENT for every slide. You write the specific text, numbers, descriptions, bullet points, and data that go into each visual pattern.
+Given an outline with governing thoughts and pattern assignments, you generate the ACTUAL CONTENT for every slide. You write the specific text, numbers, descriptions, bullet points, and data that go into each visual pattern. Every metric, timeline, and capability claim must come from EyeOn's real knowledge base — never invent statistics.
+
+## EyeOn Domain Knowledge (for content reference)
+${kbContext}
 
 ## Content Rules
 1. Every piece of text must be CLIENT-SPECIFIC — reference ${req.client.companyName} by name, use their industry terms, address their specific pain points
-2. Use concrete numbers: "16 weeks", "4 phases", "23% reduction", "3 model builders"
+2. Use REAL numbers from the knowledge base above: actual ROI metrics, delivery timelines, team certifications — NEVER invent statistics
 3. Governing thoughts are ASSERTIVE CLAIMS: "Three Certified Architects Lead Your Build" not "About Our Team"
 4. Insight bars always include a real number or client-specific fact
 5. Match the content to the visual pattern — a "waterfall" needs bars with percentages, a "timeline" needs milestones with durations
 6. Keep text concise — this is a slide, not a document. Bullets max 12 words. Descriptions max 25 words.
 7. Content cards body text: max 40 words each
 8. No filler, no "lorem ipsum", no generic consulting speak
+9. For comparison-matrix slides: use REAL EyeOn differentiators (Platinum Partner, PLANS standard, process-first methodology, €750-1100/day rate range) vs competitors
+10. For metrics-dashboard slides: pull actual industry metrics from the KB (e.g. "35-45% forecast accuracy improvement", "70% planning cycle reduction")
 
 ## Pattern-Specific Content Guidelines
 

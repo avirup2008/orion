@@ -59,7 +59,7 @@ export function renderArchitectureFlow(
 
     // Container box (if containerTitle exists)
     if (col.containerTitle) {
-      slide.addShape(pptx.ShapeType.rect, {
+      slide.addShape(pptx.ShapeType.roundRect, {
         x: cx,
         y: cardStartY,
         w: colW,
@@ -67,6 +67,7 @@ export function renderArchitectureFlow(
         rectRadius: 0.08,
         fill: { color: brand.colors.ice },
         line: { color: brand.colors.dark, width: 1.2 },
+        shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
       });
 
       // Top accent bar on container
@@ -108,7 +109,7 @@ export function renderArchitectureFlow(
 
       if (card.dashed) {
         // Dashed = future/TBD
-        slide.addShape(pptx.ShapeType.rect, {
+        slide.addShape(pptx.ShapeType.roundRect, {
           x: cx + 0.08,
           y: cy,
           w: colW - 0.16,
@@ -116,10 +117,11 @@ export function renderArchitectureFlow(
           rectRadius: 0.06,
           fill: { color: brand.colors.white },
           line: { color: brand.colors.pale, width: 0.75, dashType: "dash" },
+          shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
         });
       } else {
         // Solid card with left accent
-        slide.addShape(pptx.ShapeType.rect, {
+        slide.addShape(pptx.ShapeType.roundRect, {
           x: cx + 0.08,
           y: cy,
           w: colW - 0.16,
@@ -127,6 +129,7 @@ export function renderArchitectureFlow(
           rectRadius: 0.06,
           fill: { color: brand.colors.white },
           line: { color: brand.colors.grey10, width: 0.75 },
+          shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
         });
         // Left accent strip
         slide.addShape(pptx.ShapeType.rect, {

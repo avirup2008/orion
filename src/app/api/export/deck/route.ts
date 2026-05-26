@@ -15,7 +15,7 @@ import { NextRequest } from "next/server";
 import { generateDeck } from "@/lib/export/deck/render";
 import type { DeckRequest } from "@/lib/export/deck/types";
 
-export const maxDuration = 300; // Allow up to 300s for Vercel (Pro plan)
+export const maxDuration = 60; // Fits Vercel Hobby 60s limit (prefer multi-call pipeline)
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;

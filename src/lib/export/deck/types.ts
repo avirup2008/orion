@@ -25,6 +25,9 @@ export interface BrandConfig {
     grey30: string; // B3B3B3
     grey10: string; // E6E6E6
     eyeonNavy: string; // 132C53 — EyeOn brand primary
+    accent: string;    // C85A3A — warm terracotta for urgent banners
+    accentBg: string;  // FDF0EC — light coral background
+    accentBlue: string; // 1B4F8A — blue for "EyeOn advantage" text
   };
   fonts: {
     heading: string;  // Calibri Light
@@ -147,6 +150,7 @@ export interface SlideContent {
 export interface InsightBar {
   label: string;  // Bold prefix
   detail: string; // Grey body text
+  variant?: "wash" | "accent"; // Visual style — default "wash", "accent" for coral/red banners
 }
 
 /* ── Slide Body: Discriminated Union ────────────────────────────── */
@@ -192,6 +196,7 @@ export interface GatedFlowBody {
     title: string;
     bullets: string[];
     gate?: string;
+    duration?: string; // e.g. "Weeks 1-5"
   }>;
   details?: Array<{
     column: number;

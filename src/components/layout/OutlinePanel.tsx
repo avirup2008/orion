@@ -119,88 +119,101 @@ export default function OutlinePanel({
         }));
       }
 
-      const res = await fetch("/api/export/deck", {
+      // --- Step 1: Generate Outline ---
+      setDeckProgress(10);
+      setDeckStage("Generating narrative outline...");
+
+      const outlineRes = await fetch("/api/export/deck/outline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok || !res.body) {
-        const text = await res.text();
-        let msg = `HTTP ${res.status}`;
-        try { msg = JSON.parse(text).error || msg; } catch { /* ok */ }
-        throw new Error(msg);
+      if (!outlineRes.ok) {
+        const errData = await outlineRes.json().catch(() => ({}));
+        throw new Error(
+          (errData as Record<string, string>).error ||
+            `Outline failed: HTTP ${outlineRes.status}`,
+        );
       }
 
-      // Read SSE stream
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let completed = false;
+      const { outline } = await outlineRes.json();
+      setDeckProgress(35);
+      setDeckStage(
+        `Outline ready — ${outline.totalSlides} slides across ${outline.sections.length} sections`,
+      );
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // --- Step 2: Generate Content ---
+      setDeckProgress(40);
+      setDeckStage("Composing slide content...");
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // keep incomplete line
+      const contentRes = await fetch("/api/export/deck/content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request: payload, outline }),
+      });
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const raw = line.slice(6).trim();
-          if (!raw) continue;
-
-          try {
-            const evt = JSON.parse(raw);
-
-            if (evt.type === "progress") {
-              setDeckProgress(evt.percent || 0);
-              setDeckStage(evt.message || evt.stage || "");
-            } else if (evt.type === "complete") {
-              completed = true;
-              setDeckProgress(100);
-              setDeckStage(`Done — ${evt.slideCount} slides`);
-
-              // Decode base64 and trigger download
-              const byteChars = atob(evt.data);
-              const byteArray = new Uint8Array(byteChars.length);
-              for (let i = 0; i < byteChars.length; i++) {
-                byteArray[i] = byteChars.charCodeAt(i);
-              }
-              const blob = new Blob([byteArray], {
-                type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-              });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = evt.filename || "proposal.pptx";
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-
-              setTimeout(() => {
-                setDeckStatus("idle");
-                setDeckProgress(0);
-                setDeckStage("");
-              }, 2000);
-            } else if (evt.type === "error") {
-              throw new Error(evt.message || "Generation failed");
-            }
-          } catch (parseErr) {
-            // If it's a re-thrown error from "error" event, propagate it
-            if (parseErr instanceof Error && parseErr.message !== "Unexpected end of JSON input") {
-              throw parseErr;
-            }
-          }
-        }
+      if (!contentRes.ok) {
+        const errData = await contentRes.json().catch(() => ({}));
+        throw new Error(
+          (errData as Record<string, string>).error ||
+            `Content failed: HTTP ${contentRes.status}`,
+        );
       }
 
-      // Stream ended without a "complete" event — likely a serverless timeout
-      if (!completed) {
-        throw new Error("Connection lost — server may have timed out. Try again.");
+      const { content } = await contentRes.json();
+      setDeckProgress(70);
+      setDeckStage(`Content composed for ${content.slides.length} slides`);
+
+      // --- Step 3: Render PPTX ---
+      setDeckProgress(75);
+      setDeckStage("Rendering slides...");
+
+      const renderRes = await fetch("/api/export/deck/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content,
+          outline,
+          clientName: client.companyName || "Client",
+        }),
+      });
+
+      if (!renderRes.ok) {
+        const errData = await renderRes.json().catch(() => ({}));
+        throw new Error(
+          (errData as Record<string, string>).error ||
+            `Render failed: HTTP ${renderRes.status}`,
+        );
       }
+
+      const result = await renderRes.json();
+      setDeckProgress(100);
+      setDeckStage(`Done — ${result.slideCount} slides`);
+
+      // Decode base64 and trigger download
+      const byteChars = atob(result.data);
+      const byteArray = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        byteArray[i] = byteChars.charCodeAt(i);
+      }
+      const blob = new Blob([byteArray], {
+        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.filename || "proposal.pptx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setTimeout(() => {
+        setDeckStatus("idle");
+        setDeckProgress(0);
+        setDeckStage("");
+      }, 2000);
     } catch (err) {
       console.error("Deck export error:", err);
       setDeckError(err instanceof Error ? err.message : "Unknown error");
@@ -345,8 +358,8 @@ export default function OutlinePanel({
                 <div className="flex items-center gap-1.5 mt-2">
                   {[
                     { label: "Prep", threshold: 5 },
-                    { label: "Outline", threshold: 15 },
-                    { label: "Content", threshold: 45 },
+                    { label: "Outline", threshold: 10 },
+                    { label: "Content", threshold: 40 },
                     { label: "Render", threshold: 75 },
                     { label: "Done", threshold: 100 },
                   ].map((step) => (

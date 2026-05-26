@@ -38,13 +38,14 @@ export function renderWaterfall(
     const barY = contentBottom - barH - 1.0;
 
     // Bar rectangle
-    slide.addShape(pptx.ShapeType.rect, {
+    slide.addShape(pptx.ShapeType.roundRect, {
       x: barX,
       y: barY,
       w: barW,
       h: barH,
       fill: { color: BAR_COLORS[i % BAR_COLORS.length] },
       rectRadius: 0.06,
+      shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
     });
 
     // Label inside bar — title
@@ -113,7 +114,7 @@ export function renderWaterfall(
     const targetH = maxBarH * 0.4;
     const targetY = contentBottom - targetH - 1.0;
 
-    slide.addShape(pptx.ShapeType.rect, {
+    slide.addShape(pptx.ShapeType.roundRect, {
       x: targetX,
       y: targetY,
       w: targetW,
@@ -121,6 +122,7 @@ export function renderWaterfall(
       fill: { color: brand.colors.white },
       line: { color: brand.colors.dark, width: 1, dashType: "dash" },
       rectRadius: 0.06,
+      shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
     });
 
     slide.addText(body.target.label.toUpperCase(), {

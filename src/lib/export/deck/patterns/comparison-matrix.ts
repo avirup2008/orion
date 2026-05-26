@@ -26,13 +26,14 @@ export function renderComparisonMatrix(
   const tableY = SLIDE.content.top + 0.1;
 
   // Header row background
-  slide.addShape(pptx.ShapeType.rect, {
+  slide.addShape(pptx.ShapeType.roundRect, {
     x: tableX + labelColW + 0.1,
     y: tableY,
     w: dataCols * dataColW + 0.1,
     h: rowH,
     fill: { color: brand.colors.dark },
     rectRadius: 0.04,
+    shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
   });
 
   // Header labels

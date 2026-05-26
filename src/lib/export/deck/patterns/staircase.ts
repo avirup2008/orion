@@ -35,13 +35,14 @@ export function renderStaircase(
     const bgColor = STAIR_COLORS[i % STAIR_COLORS.length];
 
     // Bar
-    slide.addShape(pptx.ShapeType.rect, {
+    slide.addShape(pptx.ShapeType.roundRect, {
       x: stairX,
       y: barY,
       w: barW,
       h: stairBarH,
       fill: { color: bgColor },
       rectRadius: 0.06,
+      shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
     });
 
     // Title inside bar

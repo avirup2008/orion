@@ -69,7 +69,7 @@ export function renderTimeline(
     const cardY = above ? lineY - nodeH - 0.4 : lineY + 0.4;
 
     // Card
-    slide.addShape(pptx.ShapeType.rect, {
+    slide.addShape(pptx.ShapeType.roundRect, {
       x: nx,
       y: cardY,
       w: nodeW,
@@ -80,6 +80,7 @@ export function renderTimeline(
         color: ms.highlighted ? brand.colors.dark : brand.colors.grey10,
         width: ms.highlighted ? 1.2 : 0.75,
       },
+      shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
     });
 
     // Top accent strip

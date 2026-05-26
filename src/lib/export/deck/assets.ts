@@ -27,6 +27,9 @@ const COLORS = {
   grey30:    "B3B3B3",
   grey10:    "E6E6E6",
   eyeonNavy: "132C53",
+  accent:    "C85A3A",
+  accentBg:  "FDF0EC",
+  accentBlue: "1B4F8A",
 } as const;
 
 /**

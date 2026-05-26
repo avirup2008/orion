@@ -34,7 +34,7 @@ export function renderMetricsDashboard(
     const accent = metric.color || METRIC_ACCENTS[i % METRIC_ACCENTS.length];
 
     // Tile background
-    slide.addShape(pptx.ShapeType.rect, {
+    slide.addShape(pptx.ShapeType.roundRect, {
       x: tx,
       y: ty,
       w: tileW,
@@ -42,6 +42,7 @@ export function renderMetricsDashboard(
       rectRadius: 0.08,
       fill: { color: brand.colors.ice },
       line: { color: brand.colors.grey10, width: 0.75 },
+      shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
     });
 
     // Left accent strip

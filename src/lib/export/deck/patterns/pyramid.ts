@@ -2,13 +2,22 @@
  * Pattern: Pyramid / Stacked Layers
  *
  * Bottom-up layering with widest = foundation, narrowing upward.
- * Right-side annotations per layer. Optional left axis label.
+ * Layers are left-aligned and grow wider rightward.
+ * Right-side annotations per layer. Optional left axis label with arrow.
+ *
+ * Visual design adapted from the consulting-quality reference implementation
+ * (scripts/ref-pyramid.ts): rounded rectangles, subtle shadows, proper
+ * dark-to-light gradient, and separated annotation title/body.
  */
 
 import type { BrandConfig, PptxSlide, PptxInstance, PyramidBody } from "../types";
 import { SLIDE } from "../assets";
 
-const LAYER_COLORS = ["0B1F3A", "1B3A5C", "2C5F8A", "4A90C4", "A8C8E8"];
+/**
+ * Layer colors — dark-to-light navy gradient.
+ * Index 0 = top (narrowest, darkest), last = bottom (widest, lightest).
+ */
+const LAYER_COLORS = ["0B1F3A", "132C53", "1B3A5C", "2C5F8A", "4A7DAF"];
 
 export function renderPyramid(
   slide: PptxSlide,
@@ -20,116 +29,142 @@ export function renderPyramid(
   const count = layers.length;
   if (count === 0) return;
 
-  const areaLeft = SLIDE.content.left + (body.leftAxis ? 0.6 : 0);
-  const areaRight = 8.5; // leave room for annotations on right
-  const annotLeft = 9.0;
-  const annotWidth = SLIDE.content.right - annotLeft;
-  const barGap = 0.12;
-  const totalH = SLIDE.content.height - 0.4;
-  const barH = (totalH - (count - 1) * barGap) / count;
+  // ── Layout geometry ───────────────────────────────────────────
+  const pyramidLeft = SLIDE.content.left + (body.leftAxis ? 0.6 : 0);
+  const annotationRight = SLIDE.content.left + SLIDE.content.width;
+  const annotationW = 2.8;
+  const maxBoxW = annotationRight - pyramidLeft - annotationW - 0.3;
+  const minBoxW = maxBoxW * 0.48;
 
-  const maxWidth = areaRight - areaLeft;
-  const minWidth = maxWidth * 0.5;
-  const widthStep = count > 1 ? (maxWidth - minWidth) / (count - 1) : 0;
-  const centerX = areaLeft + maxWidth / 2;
+  const layerH = 0.72;
+  const layerGap = 0.12;
+  const totalH = count * layerH + (count - 1) * layerGap;
+  const startY = SLIDE.content.top + 0.15;
 
-  // Draw layers bottom-up (layer 0 = foundation = bottom = widest)
+  // ── Draw layers top-down (index 0 = narrowest/top, last = widest/bottom) ──
   layers.forEach((layer, i) => {
-    const barW = maxWidth - i * widthStep;
-    const barX = centerX - barW / 2;
-    const barY = SLIDE.content.bottom - (i + 1) * (barH + barGap) + barGap;
+    // Width grows linearly from min (top) to max (bottom)
+    const ratio = count > 1 ? i / (count - 1) : 1;
+    const boxW = minBoxW + ratio * (maxBoxW - minBoxW);
+    const boxY = startY + i * (layerH + layerGap);
+
+    // Left-aligned — layers grow rightward from pyramidLeft
+    const boxX = pyramidLeft;
     const bgColor = LAYER_COLORS[i % LAYER_COLORS.length];
 
-    // Layer rectangle
-    slide.addShape(pptx.ShapeType.rect, {
-      x: barX,
-      y: barY,
-      w: barW,
-      h: barH,
+    // Layer rectangle — rounded with subtle shadow
+    slide.addShape(pptx.ShapeType.roundRect, {
+      x: boxX,
+      y: boxY,
+      w: boxW,
+      h: layerH,
       fill: { color: bgColor },
-      rectRadius: 0.06,
+      rectRadius: 0.04,
+      shadow: {
+        type: "outer",
+        blur: 2,
+        offset: 1,
+        color: "000000",
+        opacity: 0.08,
+      },
     });
 
-    // Layer label inside
+    // Layer title — bold white, upper portion
     slide.addText(layer.label.toUpperCase(), {
-      x: barX + 0.15,
-      y: barY,
-      w: barW - 0.3,
-      h: barH * 0.5,
-      fontSize: 13,
+      x: boxX + 0.2,
+      y: boxY + 0.08,
+      w: boxW - 0.4,
+      h: 0.22,
+      fontSize: 10.5,
       fontFace: brand.fonts.body,
       color: brand.colors.white,
       bold: true,
-      valign: "bottom",
     });
 
-    // Layer description inside
+    // Layer description — smaller, pale, lower portion
     slide.addText(layer.description, {
-      x: barX + 0.15,
-      y: barY + barH * 0.5,
-      w: barW - 0.3,
-      h: barH * 0.5,
-      fontSize: 9,
+      x: boxX + 0.2,
+      y: boxY + 0.32,
+      w: boxW - 0.4,
+      h: 0.32,
+      fontSize: 8.5,
       fontFace: brand.fonts.body,
       color: brand.colors.pale,
-      valign: "top",
+      lineSpacingMultiple: 1.15,
     });
 
-    // Connector line to annotation
-    const lineY = barY + barH / 2;
+    // ── Right-side annotation ─────────────────────────────────
+    const annotX = annotationRight - annotationW;
+    const connY = boxY + layerH / 2;
+
+    // Dashed connector line from layer edge to annotation area
     slide.addShape(pptx.ShapeType.line, {
-      x: barX + barW,
-      y: lineY,
-      w: annotLeft - (barX + barW),
+      x: boxX + boxW + 0.05,
+      y: connY,
+      w: annotX - (boxX + boxW) - 0.1,
       h: 0,
-      line: { color: brand.colors.grey30, width: 0.5, dashType: "dash" },
+      line: {
+        color: brand.colors.grey30,
+        width: 0.5,
+        dashType: "dash",
+      },
     });
 
-    // Right annotation
-    slide.addText(
-      [
-        { text: `${layer.annotation.bold}\n`, options: { bold: true, color: brand.colors.dark, fontSize: 9.5 } },
-        { text: layer.annotation.body, options: { color: brand.colors.grey70, fontSize: 8.5 } },
-      ],
-      {
-        x: annotLeft,
-        y: barY + 0.05,
-        w: annotWidth,
-        h: barH - 0.1,
-        fontFace: brand.fonts.body,
-        valign: "middle",
-      },
-    );
+    // Annotation title — bold, dark
+    slide.addText(layer.annotation.bold, {
+      x: annotX,
+      y: boxY + 0.05,
+      w: annotationW,
+      h: 0.2,
+      fontSize: 9.5,
+      fontFace: brand.fonts.body,
+      color: brand.colors.dark,
+      bold: true,
+    });
+
+    // Annotation body — grey
+    slide.addText(layer.annotation.body, {
+      x: annotX,
+      y: boxY + 0.25,
+      w: annotationW,
+      h: 0.42,
+      fontSize: 8.5,
+      fontFace: brand.fonts.body,
+      color: brand.colors.grey70,
+      lineSpacingMultiple: 1.15,
+    });
   });
 
-  // Left axis label (vertical)
+  // ── Left axis label (vertical) ──────────────────────────────
   if (body.leftAxis) {
-    slide.addText(`${body.leftAxis} ▲`, {
-      x: SLIDE.content.left,
-      y: SLIDE.content.top + 0.5,
-      w: 0.4,
-      h: totalH - 1,
+    const axisX = SLIDE.content.left;
+    const axisY = startY + totalH / 2 - 0.5;
+
+    slide.addText(body.leftAxis, {
+      x: axisX,
+      y: axisY,
+      w: 0.45,
+      h: 1.0,
       fontSize: 8,
       fontFace: brand.fonts.body,
       color: brand.colors.grey50,
       bold: true,
+      charSpacing: 1.5,
       align: "center",
       valign: "middle",
       rotate: 270,
-      charSpacing: 2,
     });
 
-    // Vertical arrow
+    // Vertical arrow pointing upward along left axis
     slide.addShape(pptx.ShapeType.line, {
-      x: SLIDE.content.left + 0.2,
-      y: SLIDE.content.bottom - 0.3,
+      x: axisX + 0.22,
+      y: startY - 0.05,
       w: 0,
-      h: -(totalH - 1),
+      h: totalH + 0.1,
       line: {
         color: brand.colors.grey30,
-        width: 1,
-        dashType: "dash",
-        headEnd: { type: "arrow", size: 4 },
+        width: 0.7,
+        beginArrowType: "arrow",
       },
     });
   }

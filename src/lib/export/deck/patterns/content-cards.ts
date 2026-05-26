@@ -35,7 +35,7 @@ export function renderContentCards(
     const accent = card.accentColor || CARD_ACCENTS[i % CARD_ACCENTS.length];
 
     // Card background
-    slide.addShape(pptx.ShapeType.rect, {
+    slide.addShape(pptx.ShapeType.roundRect, {
       x: cx,
       y: cy,
       w: cardW,
@@ -43,6 +43,7 @@ export function renderContentCards(
       rectRadius: 0.06,
       fill: { color: brand.colors.white },
       line: { color: brand.colors.grey10, width: 0.75 },
+      shadow: { type: "outer", blur: 3, offset: 1.5, color: "000000", opacity: 0.1 },
     });
 
     // Top accent bar

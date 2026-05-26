@@ -123,14 +123,19 @@ export function addInsightBar(
   brand: BrandConfig,
   insight: InsightBar,
 ): void {
+  const isAccent = insight.variant === "accent";
+
   // Background strip
   slide.addShape(pptx.ShapeType.rect, {
     x: SLIDE.margin.left,
     y: 6.5,
     w: SLIDE.content.width,
     h: 0.4,
-    fill: { color: brand.colors.wash },
+    fill: { color: isAccent ? brand.colors.accentBg : brand.colors.wash },
     rectRadius: 0.04,
+    ...(isAccent
+      ? { line: { color: brand.colors.accent, width: 0.75, transparency: 60 } }
+      : {}),
   });
 
   // Mixed-format text
@@ -140,7 +145,7 @@ export function addInsightBar(
         text: `${insight.label}: `,
         options: {
           bold: true,
-          color: brand.colors.dark,
+          color: isAccent ? brand.colors.accent : brand.colors.dark,
           fontSize: 9.5,
         },
       },

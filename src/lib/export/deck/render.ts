@@ -60,7 +60,7 @@ async function callClaude(
 
 /* ── Phase 1: Generate Outline ──────────────────────────────────── */
 
-async function generateOutline(
+export async function generateOutline(
   req: DeckRequest,
   apiKey: string,
 ): Promise<DeckOutline> {
@@ -87,7 +87,7 @@ async function generateOutline(
 
 /* ── Phase 2: Generate Content ──────────────────────────────────── */
 
-async function generateContent(
+export async function generateContent(
   req: DeckRequest,
   outline: DeckOutline,
   apiKey: string,
@@ -125,7 +125,7 @@ async function generateContent(
 
 /* ── Phase 3: Render PPTX ───────────────────────────────────────── */
 
-async function renderPptx(
+export async function renderPptx(
   content: DeckContent,
   brand: BrandConfig,
 ): Promise<Buffer> {
@@ -184,6 +184,40 @@ async function renderPptx(
   return Buffer.from(output as ArrayBuffer);
 }
 
+/* ── Cover Slide Patching ──────────────────────────────────────── */
+
+/**
+ * Patch cover slide with request context.
+ * Claude often omits title/clientName from cover body, so we inject them.
+ */
+export function patchCoverSlide(
+  content: DeckContent,
+  outline: DeckOutline,
+  clientName: string,
+): void {
+  for (const slide of content.slides) {
+    if (slide.body.pattern === "cover") {
+      const cover = slide.body as {
+        pattern: "cover";
+        title: string;
+        clientName: string;
+        subtitle: string;
+        date: string;
+        preparedBy: string;
+      };
+      if (!cover.title || cover.title === "Proposal") {
+        cover.title = outline.title || "Anaplan Implementation Proposal";
+      }
+      if (!cover.subtitle) {
+        cover.subtitle = outline.subtitle || "";
+      }
+      if (!cover.clientName || cover.clientName === "Client") {
+        cover.clientName = clientName || "Client";
+      }
+    }
+  }
+}
+
 /* ── Main Export ─────────────────────────────────────────────────── */
 
 export interface DeckResult {
@@ -227,24 +261,7 @@ export async function generateDeck(
   emit("content-complete", 70, `Content composed for ${content.slides.length} slides`);
 
   // Post-process: Inject request context into cover slide
-  // Claude often omits title/clientName from cover body, so we patch it from the request
-  for (const slide of content.slides) {
-    if (slide.body.pattern === "cover") {
-      const cover = slide.body as { pattern: "cover"; title: string; clientName: string; subtitle: string; date: string; preparedBy: string };
-      // Use outline title if cover has default
-      if (!cover.title || cover.title === "Proposal") {
-        cover.title = outline.title || `Anaplan Implementation Proposal`;
-      }
-      // Use outline subtitle if cover has none
-      if (!cover.subtitle) {
-        cover.subtitle = outline.subtitle || "";
-      }
-      // Always inject the actual client name from the request
-      if (!cover.clientName || cover.clientName === "Client") {
-        cover.clientName = req.client.companyName || "Client";
-      }
-    }
-  }
+  patchCoverSlide(content, outline, req.client.companyName);
 
   // Phase 3: Render
   emit("rendering-slides", 75, "Rendering slides with PptxGenJS...");
