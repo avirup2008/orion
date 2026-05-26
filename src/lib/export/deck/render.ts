@@ -35,14 +35,15 @@ async function callClaude(
   user: string,
   apiKey: string,
   maxTokens: number = 8192,
+  model: string = "claude-sonnet-4-20250514",
 ): Promise<string> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // 50s timeout — must complete before Vercel's 60s function limit
+      // 55s timeout — must complete before Vercel's 60s function limit
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 50_000);
+      const timeout = setTimeout(() => controller.abort(), 55_000);
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -52,7 +53,7 @@ async function callClaude(
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model,
           max_tokens: maxTokens,
           system,
           messages: [{ role: "user", content: user }],
@@ -135,7 +136,9 @@ export async function generateOutline(
   apiKey: string,
 ): Promise<DeckOutline> {
   const { system, user } = buildOutlinePrompt(req);
-  const raw = await callClaude(system, user, apiKey, 4096);
+  // Haiku for outline — 3x faster, and outline is just structure (patterns,
+  // sections, governing thoughts). Sonnet reserved for content where depth matters.
+  const raw = await callClaude(system, user, apiKey, 4096, "claude-3-5-haiku-20241022");
 
   let parsed: unknown;
   try {
