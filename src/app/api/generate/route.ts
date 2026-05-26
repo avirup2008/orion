@@ -1,6 +1,6 @@
 import { buildSystemPrompt, buildQuestionPrompt, type GenerateRequest } from "@/lib/agents";
 
-const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+const CLAUDE_MODEL = "claude-sonnet-4-6";
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
 export async function POST(request: Request) {

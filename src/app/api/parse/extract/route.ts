@@ -19,7 +19,7 @@
 
 import { NextRequest } from "next/server";
 
-const CLAUDE_MODEL = "claude-sonnet-4-20250514";
+const CLAUDE_MODEL = "claude-sonnet-4-6";
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 
 export const maxDuration = 60;

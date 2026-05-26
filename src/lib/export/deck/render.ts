@@ -35,7 +35,7 @@ async function callClaude(
   user: string,
   apiKey: string,
   maxTokens: number = 8192,
-  model: string = "claude-sonnet-4-20250514",
+  model: string = "claude-sonnet-4-6",
 ): Promise<string> {
   let lastError: Error | null = null;
 
@@ -138,7 +138,7 @@ export async function generateOutline(
   const { system, user } = buildOutlinePrompt(req);
   // Haiku for outline — 3x faster, and outline is just structure (patterns,
   // sections, governing thoughts). Sonnet reserved for content where depth matters.
-  const raw = await callClaude(system, user, apiKey, 4096, "claude-haiku-4-20250414");
+  const raw = await callClaude(system, user, apiKey, 4096, "claude-haiku-4-5-20251001");
 
   let parsed: unknown;
   try {
