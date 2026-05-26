@@ -206,6 +206,67 @@ function buildOutlineUserMessage(req: DeckRequest): string {
   return parts.join("\n");
 }
 
+/* ── Pattern Guidelines (only include specs for patterns in current batch) ── */
+
+const PATTERN_GUIDELINES: Record<string, string> = {
+  cover: `### cover
+- Must include: title (the proposal title), subtitle, clientName (the client's company name), date (YYYY-MM-DD), preparedBy ("EyeOn")
+- The title should be specific like "Anaplan Manufacturing Planning Transformation" not just "Proposal"`,
+  waterfall: `### waterfall
+- Each bar needs: label, percentage (must sum to ~100), description, 1-3 detail items
+- Bars represent proportional effort/scope/budget allocation`,
+  "gated-flow": `### gated-flow
+- 2-5 phases with numbered steps. EVERY phase must have a title and 3-5 bullets — no phase can be left empty or with placeholder text
+- Gate labels are decision points between phases: "Go/No-Go", "UAT Sign-off", "Scope Lock"`,
+  pyramid: `### pyramid
+- 3-5 layers, bottom = foundation, top = value
+- Each layer has a label, description, and right-side annotation`,
+  staircase: `### staircase
+- 3-5 ascending steps from basic to advanced capability
+- Each step has title, subtitle, and annotation`,
+  "architecture-flow": `### architecture-flow
+- 3-5 columns representing system/data layers
+- Each column has zone label, optional container, and 2-4 cards`,
+  "content-cards": `### content-cards
+- 4-6 cards in 2 or 3 columns
+- Optional metric callout (big number + label) above title`,
+  "comparison-matrix": `### comparison-matrix
+- 2-4 header columns, 4-6 criteria rows
+- Use highlight=true for EyeOn's advantages`,
+  timeline: `### timeline
+- 4-6 milestones with duration labels
+- Highlight critical milestones`,
+  "metrics-dashboard": `### metrics-dashboard
+- 4-6 KPI tiles with large numbers
+- Include supporting bullets below`,
+  "quote-callout": `### quote-callout
+- Testimonial or key strategic statement
+- Attribution with name and role`,
+};
+
+function buildPatternGuidelines(outline: DeckOutline, clientName: string): string {
+  // Collect unique patterns used in this batch
+  const usedPatterns = new Set<string>();
+  for (const section of outline.sections) {
+    for (const slide of section.slides) {
+      usedPatterns.add(slide.pattern);
+    }
+  }
+  // Always include cover if present
+  const lines: string[] = [];
+  for (const pattern of usedPatterns) {
+    let guideline = PATTERN_GUIDELINES[pattern];
+    if (guideline) {
+      // Inject clientName into cover guideline
+      if (pattern === "cover") {
+        guideline += `\n- clientName must be the actual client company name: "${clientName}"`;
+      }
+      lines.push(guideline);
+    }
+  }
+  return lines.length > 0 ? lines.join("\n\n") : "(No pattern-specific guidelines needed)";
+}
+
 /* ── Phase 2: Content Composer ──────────────────────────────────── */
 
 export function buildContentPrompt(
@@ -247,51 +308,7 @@ Every slide must contain DENSE, SUBSTANTIVE content. A consulting partner paying
 - If a slide's contentBrief says "Overview of..." or "Introduction to...", that's a signal to go DEEPER: what specific capabilities? what specific numbers? what specific client impact?
 
 ## Pattern-Specific Content Guidelines
-
-### cover
-- Must include: title (the proposal title), subtitle, clientName (the client's company name), date (YYYY-MM-DD), preparedBy ("EyeOn")
-- The title should be specific like "Anaplan Manufacturing Planning Transformation" not just "Proposal"
-- clientName must be the actual client company name: "${req.client.companyName}"
-
-### waterfall
-- Each bar needs: label, percentage (must sum to ~100), description, 1-3 detail items
-- Bars represent proportional effort/scope/budget allocation
-
-### gated-flow
-- 2-5 phases with numbered steps. EVERY phase must have a title and 3-5 bullets — no phase can be left empty or with placeholder text
-- Gate labels are decision points between phases: "Go/No-Go", "UAT Sign-off", "Scope Lock"
-
-### pyramid
-- 3-5 layers, bottom = foundation, top = value
-- Each layer has a label, description, and right-side annotation
-
-### staircase
-- 3-5 ascending steps from basic to advanced capability
-- Each step has title, subtitle, and annotation
-
-### architecture-flow
-- 3-5 columns representing system/data layers
-- Each column has zone label, optional container, and 2-4 cards
-
-### content-cards
-- 4-6 cards in 2 or 3 columns
-- Optional metric callout (big number + label) above title
-
-### comparison-matrix
-- 2-4 header columns, 4-6 criteria rows
-- Use highlight=true for EyeOn's advantages
-
-### timeline
-- 4-6 milestones with duration labels
-- Highlight critical milestones
-
-### metrics-dashboard
-- 4-6 KPI tiles with large numbers
-- Include supporting bullets below
-
-### quote-callout
-- Testimonial or key strategic statement
-- Attribution with name and role
+${buildPatternGuidelines(outline, req.client.companyName)}
 
 ## Output Format
 Return a JSON object:

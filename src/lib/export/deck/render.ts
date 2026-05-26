@@ -114,10 +114,11 @@ async function callClaude(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 
-      // Abort (our 48s timeout) — don't retry, give clear message
+      // Abort (our timeout) — don't retry, give clear message
       if (lastError.name === "AbortError" || lastError.message.includes("aborted")) {
+        const limitSec = model.includes("haiku") ? 48 : 55;
         throw new Error(
-          "Claude took too long to respond (>48s). Try reducing slide count or simplifying input."
+          `Claude took too long to respond (>${limitSec}s). Try reducing slide count or simplifying input.`
         );
       }
 
