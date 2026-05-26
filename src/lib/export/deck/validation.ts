@@ -534,6 +534,36 @@ function repairJSON(raw: string): string {
       .replace(/\t/g, "\\t");
   });
 
+  // --- Handle unterminated strings (truncation mid-value) ---
+  // Walk the string to detect if we end inside an open string literal
+  {
+    let inStr = false;
+    let esc = false;
+    for (const ch of s) {
+      if (esc) { esc = false; continue; }
+      if (ch === "\\") { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; }
+    }
+    if (inStr) {
+      // We're inside an unterminated string — close it
+      // First strip any trailing backslash (would escape the quote we're adding)
+      if (s.endsWith("\\")) s = s.slice(0, -1);
+      s += '"';
+    }
+  }
+
+  // Clean up dangling structures after closing an unterminated string:
+  // e.g. `"value", "key":` → remove the trailing incomplete key-value
+  // Trim trailing whitespace first
+  s = s.trimEnd();
+  // Remove trailing colon (incomplete value) like `"key":`
+  if (s.endsWith(":")) {
+    // Remove the dangling key: find the last complete key and remove `"key":`
+    s = s.replace(/,?\s*"[^"]*"\s*:\s*$/, "");
+  }
+  // Remove trailing comma (incomplete next element)
+  s = s.replace(/,\s*$/, "");
+
   // Auto-close truncated JSON: count unmatched brackets
   let braces = 0;
   let brackets = 0;
