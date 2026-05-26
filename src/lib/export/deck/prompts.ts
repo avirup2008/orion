@@ -212,13 +212,18 @@ Given an outline with governing thoughts and pattern assignments, you generate t
 
 ## Pattern-Specific Content Guidelines
 
+### cover
+- Must include: title (the proposal title), subtitle, clientName (the client's company name), date (YYYY-MM-DD), preparedBy ("EyeOn")
+- The title should be specific like "Anaplan Manufacturing Planning Transformation" not just "Proposal"
+- clientName must be the actual client company name: "${req.client.companyName}"
+
 ### waterfall
 - Each bar needs: label, percentage (must sum to ~100), description, 1-3 detail items
 - Bars represent proportional effort/scope/budget allocation
 
 ### gated-flow
-- 2-4 phases with numbered steps, 3-5 bullets each
-- Gate labels are decision points: "Go/No-Go", "UAT Sign-off", "Scope Lock"
+- 2-5 phases with numbered steps. EVERY phase must have a title and 3-5 bullets — no phase can be left empty or with placeholder text
+- Gate labels are decision points between phases: "Go/No-Go", "UAT Sign-off", "Scope Lock"
 
 ### pyramid
 - 3-5 layers, bottom = foundation, top = value

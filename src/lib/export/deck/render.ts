@@ -226,6 +226,26 @@ export async function generateDeck(
   const content = await generateContent(req, outline, apiKey);
   emit("content-complete", 70, `Content composed for ${content.slides.length} slides`);
 
+  // Post-process: Inject request context into cover slide
+  // Claude often omits title/clientName from cover body, so we patch it from the request
+  for (const slide of content.slides) {
+    if (slide.body.pattern === "cover") {
+      const cover = slide.body as { pattern: "cover"; title: string; clientName: string; subtitle: string; date: string; preparedBy: string };
+      // Use outline title if cover has default
+      if (!cover.title || cover.title === "Proposal") {
+        cover.title = outline.title || `Anaplan Implementation Proposal`;
+      }
+      // Use outline subtitle if cover has none
+      if (!cover.subtitle) {
+        cover.subtitle = outline.subtitle || "";
+      }
+      // Always inject the actual client name from the request
+      if (!cover.clientName || cover.clientName === "Client") {
+        cover.clientName = req.client.companyName || "Client";
+      }
+    }
+  }
+
   // Phase 3: Render
   emit("rendering-slides", 75, "Rendering slides with PptxGenJS...");
   const buffer = await renderPptx(content, brand);
