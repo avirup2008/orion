@@ -337,10 +337,10 @@ export async function generateOutline(
   const { system, user } = buildOutlinePrompt(req);
   // Haiku for outline — faster, and outline is just structure (patterns,
   // sections, governing thoughts). Sonnet reserved for content where depth matters.
-  // Token budget: 4096 base. With trimmed KB context + optional contentBrief,
-  // this fits 18-slide outlines. Repair code handles edge truncation.
-  // CONSTRAINT: must complete within 48s — 6144+ causes Haiku timeouts
-  const outlineTokens = 4096;
+  // Token budget: scale with question count. 4096 fits ~10 slides but truncates
+  // with 10+ questions that produce 12-20 slides. With 50s timeout, 6144 is safe.
+  const qCount = req.questions?.length || 0;
+  const outlineTokens = qCount > 6 ? 6144 : 4096;
   const raw = await callClaude(system, user, apiKey, outlineTokens, "claude-haiku-4-5-20251001");
 
   let parsed: unknown;
