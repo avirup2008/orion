@@ -88,27 +88,27 @@ export function renderWaterfall(
       });
     }
 
-    // Detail items below bars (max 2 to prevent overflow)
+    // Detail items below bars — single detail per bar to prevent overlap
     if (bar.details && bar.details.length > 0) {
-      const detailY = contentBottom - 0.8;
-      const maxDetails = Math.min(bar.details.length, 2);
-      bar.details.slice(0, maxDetails).forEach((d, di) => {
-        slide.addText(
-          [
-            { text: `${d.bold}\n`, options: { bold: true, color: brand.colors.dark, fontSize: 9 } },
-            { text: d.body, options: { color: brand.colors.grey70, fontSize: 8.5 } },
-          ],
-          {
-            x: barX,
-            y: detailY + di * 0.25,
-            w: barW,
-            h: 0.22,
-            fontFace: brand.fonts.body,
-            valign: "top",
-            autoFit: true,
-          },
-        );
-      });
+      const detailY = contentBottom - 0.85;
+      const detail = bar.details[0]; // one detail per bar — keeps it clean
+      const detailFontSize = count >= 5 ? 7.5 : 8.5;
+
+      slide.addText(
+        [
+          { text: `${detail.bold}\n`, options: { bold: true, color: brand.colors.dark, fontSize: detailFontSize } },
+          { text: detail.body, options: { color: brand.colors.grey70, fontSize: detailFontSize - 0.5, lineSpacingMultiple: 1.1 } },
+        ],
+        {
+          x: barX,
+          y: detailY,
+          w: barW - 0.05,
+          h: 0.7,
+          fontFace: brand.fonts.body,
+          valign: "top",
+          autoFit: true,
+        },
+      );
     }
   });
 

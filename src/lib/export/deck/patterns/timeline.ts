@@ -20,10 +20,16 @@ export function renderTimeline(
   const count = milestones.length;
   if (count === 0) return;
 
-  const lineY = SLIDE.content.top + SLIDE.content.height / 2;
-  const nodeGap = 0.3;
+  // Adaptive layout: compact mode for 5+ milestones
+  const compact = count >= 5;
+  const nodeGap = compact ? 0.12 : 0.3;
   const nodeW = (SLIDE.content.width - (count - 1) * nodeGap) / count;
-  const nodeH = 1.4;
+  const circleR = compact ? 0.15 : 0.2;
+  const cardLineGap = compact ? 0.25 : 0.4;
+  // Taller cards in compact mode to fit description text
+  const nodeH = compact ? 1.55 : 1.4;
+
+  const lineY = SLIDE.content.top + SLIDE.content.height / 2;
 
   // Main timeline line
   slide.addShape(pptx.ShapeType.line, {
@@ -41,7 +47,6 @@ export function renderTimeline(
       : MILESTONE_COLORS[i % MILESTONE_COLORS.length];
 
     // Node circle on the line
-    const circleR = 0.2;
     slide.addShape(pptx.ShapeType.ellipse, {
       x: nx + nodeW / 2 - circleR,
       y: lineY - circleR,
@@ -56,7 +61,7 @@ export function renderTimeline(
       y: lineY - circleR,
       w: circleR * 2,
       h: circleR * 2,
-      fontSize: 10,
+      fontSize: compact ? 8 : 10,
       fontFace: brand.fonts.body,
       color: brand.colors.white,
       bold: true,
@@ -64,9 +69,9 @@ export function renderTimeline(
       valign: "middle",
     });
 
-    // Content card above the line (odd index) or below (even index)
+    // Content card above the line (even index) or below (odd index)
     const above = i % 2 === 0;
-    const cardY = above ? lineY - nodeH - 0.4 : lineY + 0.4;
+    const cardY = above ? lineY - nodeH - cardLineGap : lineY + cardLineGap;
 
     // Card
     slide.addShape(pptx.ShapeType.roundRect, {
@@ -94,20 +99,21 @@ export function renderTimeline(
     });
 
     // Duration badge
+    const badgeW = compact ? nodeW * 0.65 : nodeW * 0.55;
     slide.addShape(pptx.ShapeType.roundRect, {
-      x: nx + 0.1,
-      y: cardY + 0.12,
-      w: nodeW * 0.55,
-      h: 0.22,
+      x: nx + 0.08,
+      y: cardY + 0.1,
+      w: badgeW,
+      h: 0.2,
       fill: { color: brand.colors.wash },
-      rectRadius: 0.11,
+      rectRadius: 0.1,
     });
     slide.addText(ms.duration, {
-      x: nx + 0.1,
-      y: cardY + 0.12,
-      w: nodeW * 0.55,
-      h: 0.22,
-      fontSize: 7.5,
+      x: nx + 0.08,
+      y: cardY + 0.1,
+      w: badgeW,
+      h: 0.2,
+      fontSize: compact ? 7 : 7.5,
       fontFace: brand.fonts.body,
       color: brand.colors.steel,
       bold: true,
@@ -116,28 +122,32 @@ export function renderTimeline(
     });
 
     // Label
+    const labelY = cardY + (compact ? 0.34 : 0.4);
+    const labelH = compact ? 0.24 : 0.3;
     slide.addText(ms.label, {
-      x: nx + 0.1,
-      y: cardY + 0.4,
-      w: nodeW - 0.2,
-      h: 0.3,
-      fontSize: 11,
+      x: nx + 0.08,
+      y: labelY,
+      w: nodeW - 0.16,
+      h: labelH,
+      fontSize: compact ? 9.5 : 11,
       fontFace: brand.fonts.body,
       color: brand.colors.dark,
       bold: true,
       autoFit: true,
     });
 
-    // Description
+    // Description — use remaining card height, clamp to card boundary
+    const descY = labelY + labelH + 0.04;
+    const descH = Math.max(nodeH - (descY - cardY) - 0.08, 0.3);
     slide.addText(ms.description, {
-      x: nx + 0.1,
-      y: cardY + 0.72,
-      w: nodeW - 0.2,
-      h: nodeH - 0.85,
-      fontSize: 8.5,
+      x: nx + 0.08,
+      y: descY,
+      w: nodeW - 0.16,
+      h: descH,
+      fontSize: compact ? 7.5 : 8.5,
       fontFace: brand.fonts.body,
       color: brand.colors.grey70,
-      lineSpacingMultiple: 1.3,
+      lineSpacingMultiple: compact ? 1.15 : 1.3,
       valign: "top",
       autoFit: true,
     });
@@ -145,13 +155,15 @@ export function renderTimeline(
     // Connector from card to node
     const connY1 = above ? cardY + nodeH : cardY;
     const connY2 = above ? lineY - circleR : lineY + circleR;
-    slide.addShape(pptx.ShapeType.line, {
-      x: nx + nodeW / 2,
-      y: connY1,
-      w: 0,
-      h: connY2 - connY1,
-      line: { color: brand.colors.grey30, width: 0.5, dashType: "dash" },
-    });
+    if (Math.abs(connY2 - connY1) > 0.02) {
+      slide.addShape(pptx.ShapeType.line, {
+        x: nx + nodeW / 2,
+        y: Math.min(connY1, connY2),
+        w: 0,
+        h: Math.abs(connY2 - connY1),
+        line: { color: brand.colors.grey30, width: 0.5, dashType: "dash" },
+      });
+    }
   });
 
   // Total duration label
