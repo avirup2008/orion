@@ -130,7 +130,12 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
 
     try {
       // --- Step 2: Generate Content (batched for large decks) ---
-      const allSlides = approvedOutline.sections.flatMap((s: { slides: unknown[] }) => s.slides);
+      // Flatten slides but track original section labels for each slide
+      const allSlidesWithLabels = approvedOutline.sections.flatMap(
+        (s: { label: string; slides: unknown[] }) =>
+          s.slides.map((slide) => ({ slide, sectionLabel: s.label })),
+      );
+      const allSlides = allSlidesWithLabels.map((s) => s.slide);
       // 2 slides per batch — tool_use is slower than raw text, need each batch
       // to complete in <42s to stay within Vercel's 60s function timeout
       const BATCH_SIZE = 2;
@@ -140,12 +145,19 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
 
       if (needsBatching) {
         // Split into batches — each is its own API call with its own 60s budget
+        // Preserve original section labels so Claude assigns correct sectionLabel per slide
         const batches: typeof approvedOutline.sections = [];
+        const batchSectionLabels: string[][] = []; // original labels per batch
         for (let i = 0; i < allSlides.length; i += BATCH_SIZE) {
+          const batchSlides = allSlidesWithLabels.slice(i, i + BATCH_SIZE);
+          // Use the first slide's section label for the batch section
+          // (Claude sees this in the outline and echoes it back)
+          const primaryLabel = batchSlides[0]?.sectionLabel || "Content";
           batches.push({
-            label: `BATCH`,
-            slides: allSlides.slice(i, i + BATCH_SIZE) as DeckOutline["sections"][0]["slides"],
+            label: primaryLabel,
+            slides: batchSlides.map((s) => s.slide) as DeckOutline["sections"][0]["slides"],
           });
+          batchSectionLabels.push(batchSlides.map((s) => s.sectionLabel));
         }
 
         let failedBatches = 0;
@@ -176,20 +188,20 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
                 console.warn(`Batch ${b + 1} timed out, using fallback slides: ${msg}`);
                 failedBatches++;
                 // Generate placeholder slides from outline data
-                for (const slide of batches[b].slides) {
+                const labels = batchSectionLabels[b] || [];
+                for (let si = 0; si < batches[b].slides.length; si++) {
+                  const slide = batches[b].slides[si];
                   allContentSlides.push({
                     id: slide.id,
-                    sectionLabel: batches[b].label || "Content",
+                    sectionLabel: labels[si] || batches[b].label || "Content",
                     governingThought: slide.governingThought || "",
                     subtitle: slide.subtitle || "",
-                    insightBar: slide.insightBar || { label: "", detail: "" },
+                    insightBar: { label: "Timeout", detail: slide.insightBar || "Content generation timed out" },
                     body: {
                       pattern: "quote-callout" as const,
                       quote: slide.governingThought || "Content generation timed out for this slide",
                       attribution: "Orion — slide content pending",
-                      calloutBoxes: [
-                        { label: "Status", detail: "This slide's content could not be generated within the time limit. Re-generate the deck or edit manually." },
-                      ],
+                      role: "",
                     },
                   });
                 }
@@ -200,27 +212,33 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
             }
 
             const { content: batchContent } = await contentRes.json();
-            allContentSlides.push(...batchContent.slides);
+            // Restore original section labels for each slide in the batch
+            const labels = batchSectionLabels[b] || [];
+            const batchSlides = batchContent.slides.map((s: Record<string, unknown>, si: number) => ({
+              ...s,
+              sectionLabel: labels[si] || s.sectionLabel,
+            }));
+            allContentSlides.push(...batchSlides);
           } catch (batchErr) {
             const errMsg = batchErr instanceof Error ? batchErr.message : String(batchErr);
             // Timeout-like errors: skip with fallback
             if (errMsg.includes("too long") || errMsg.includes("timeout") || errMsg.includes("aborted") || errMsg.includes("Failed to fetch") || errMsg.includes("504")) {
               console.warn(`Batch ${b + 1} failed (timeout), using fallback: ${errMsg}`);
               failedBatches++;
-              for (const slide of batches[b].slides) {
+              const labels2 = batchSectionLabels[b] || [];
+              for (let si = 0; si < batches[b].slides.length; si++) {
+                const slide = batches[b].slides[si];
                 allContentSlides.push({
                   id: slide.id,
-                  sectionLabel: batches[b].label || "Content",
+                  sectionLabel: labels2[si] || batches[b].label || "Content",
                   governingThought: slide.governingThought || "",
                   subtitle: slide.subtitle || "",
-                  insightBar: slide.insightBar || { label: "", detail: "" },
+                  insightBar: { label: "Timeout", detail: slide.insightBar || "Content generation timed out" },
                   body: {
                     pattern: "quote-callout" as const,
                     quote: slide.governingThought || "Content generation timed out",
                     attribution: "Orion — slide content pending",
-                    calloutBoxes: [
-                      { label: "Status", detail: "This slide timed out during generation. Re-generate or edit manually." },
-                    ],
+                    role: "",
                   },
                 });
               }
