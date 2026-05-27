@@ -358,11 +358,18 @@ export async function generateOutline(
     throw new Error(`Invalid outline structure: ${issues}`);
   }
 
-  // Hard cap: if Haiku exceeded the slide limit, truncate sections to fit.
+  // Slide count guardrails: cap at MAX and warn if below MIN.
   // 18 slides max ensures content generation stays within Vercel timeout budget.
+  // Minimum depends on question count — a 10-question RFP needs at least 10 slides.
   const MAX_SLIDES = req.targetSlideCount || 18;
+  const MIN_SLIDES = req.targetSlideCount || (qCount > 6 ? 10 : qCount > 3 ? 6 : 4);
   const outline = result.data as DeckOutline;
   let totalSlides = outline.sections.reduce((n, s) => n + s.slides.length, 0);
+
+  if (totalSlides < MIN_SLIDES) {
+    console.warn(`Outline has only ${totalSlides} slides (minimum ${MIN_SLIDES} for ${qCount} questions) — Haiku under-produced. Consider re-generating.`);
+  }
+
   if (totalSlides > MAX_SLIDES) {
     console.warn(`Outline has ${totalSlides} slides, capping to ${MAX_SLIDES}`);
     let remaining = MAX_SLIDES;
