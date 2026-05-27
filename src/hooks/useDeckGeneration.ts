@@ -172,7 +172,7 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
               const errMsg = (errData as Record<string, unknown>).error;
               const msg = typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg || "");
               // If it's a timeout, skip this batch with fallback slides
-              if (msg.includes("too long") || msg.includes("timeout") || msg.includes("aborted") || contentRes.status === 504) {
+              if (msg.includes("too long") || msg.includes("timeout") || msg.includes("aborted") || msg.includes("Failed to fetch") || contentRes.status === 504) {
                 console.warn(`Batch ${b + 1} timed out, using fallback slides: ${msg}`);
                 failedBatches++;
                 // Generate placeholder slides from outline data
@@ -204,7 +204,7 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
           } catch (batchErr) {
             const errMsg = batchErr instanceof Error ? batchErr.message : String(batchErr);
             // Timeout-like errors: skip with fallback
-            if (errMsg.includes("too long") || errMsg.includes("timeout") || errMsg.includes("aborted") || errMsg.includes("504")) {
+            if (errMsg.includes("too long") || errMsg.includes("timeout") || errMsg.includes("aborted") || errMsg.includes("Failed to fetch") || errMsg.includes("504")) {
               console.warn(`Batch ${b + 1} failed (timeout), using fallback: ${errMsg}`);
               failedBatches++;
               for (const slide of batches[b].slides) {
