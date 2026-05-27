@@ -358,7 +358,27 @@ export async function generateOutline(
     throw new Error(`Invalid outline structure: ${issues}`);
   }
 
-  return result.data as DeckOutline;
+  // Hard cap: if Haiku exceeded the slide limit, truncate sections to fit.
+  // 18 slides max ensures content generation stays within Vercel timeout budget.
+  const MAX_SLIDES = req.targetSlideCount || 18;
+  const outline = result.data as DeckOutline;
+  let totalSlides = outline.sections.reduce((n, s) => n + s.slides.length, 0);
+  if (totalSlides > MAX_SLIDES) {
+    console.warn(`Outline has ${totalSlides} slides, capping to ${MAX_SLIDES}`);
+    let remaining = MAX_SLIDES;
+    outline.sections = outline.sections
+      .map((s) => {
+        if (remaining <= 0) return { ...s, slides: [] };
+        const take = Math.min(s.slides.length, remaining);
+        remaining -= take;
+        return { ...s, slides: s.slides.slice(0, take) };
+      })
+      .filter((s) => s.slides.length > 0);
+    totalSlides = outline.sections.reduce((n, s) => n + s.slides.length, 0);
+    outline.totalSlides = totalSlides;
+  }
+
+  return outline;
 }
 
 /* ── Phase 2: Generate Content ──────────────────────────────────── */

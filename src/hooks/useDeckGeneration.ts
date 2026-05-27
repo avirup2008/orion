@@ -148,6 +148,7 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
           });
         }
 
+        let failedBatches = 0;
         for (let b = 0; b < batches.length; b++) {
           const pct = 40 + Math.round((b / batches.length) * 30);
           setProgress(pct);
@@ -159,23 +160,78 @@ export function useDeckGeneration(): UseDeckGenerationReturn {
             totalSlides: batches[b].slides.length,
           };
 
-          const contentRes = await fetch("/api/export/deck/content", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ request: payload, outline: batchOutline }),
-          });
+          try {
+            const contentRes = await fetch("/api/export/deck/content", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ request: payload, outline: batchOutline }),
+            });
 
-          if (!contentRes.ok) {
-            const errData = await contentRes.json().catch(() => ({}));
-            const errMsg = (errData as Record<string, unknown>).error;
-            throw new Error(
-              (typeof errMsg === "string" ? errMsg : errMsg ? JSON.stringify(errMsg) : null) ||
-                `Content generation failed (batch ${b + 1}, HTTP ${contentRes.status})`,
-            );
+            if (!contentRes.ok) {
+              const errData = await contentRes.json().catch(() => ({}));
+              const errMsg = (errData as Record<string, unknown>).error;
+              const msg = typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg || "");
+              // If it's a timeout, skip this batch with fallback slides
+              if (msg.includes("too long") || msg.includes("timeout") || msg.includes("aborted") || contentRes.status === 504) {
+                console.warn(`Batch ${b + 1} timed out, using fallback slides: ${msg}`);
+                failedBatches++;
+                // Generate placeholder slides from outline data
+                for (const slide of batches[b].slides) {
+                  allContentSlides.push({
+                    id: slide.id,
+                    sectionLabel: batches[b].label || "Content",
+                    governingThought: slide.governingThought || "",
+                    subtitle: slide.subtitle || "",
+                    insightBar: slide.insightBar || { label: "", detail: "" },
+                    body: {
+                      pattern: "quote-callout" as const,
+                      quote: slide.governingThought || "Content generation timed out for this slide",
+                      attribution: "Orion — slide content pending",
+                      calloutBoxes: [
+                        { label: "Status", detail: "This slide's content could not be generated within the time limit. Re-generate the deck or edit manually." },
+                      ],
+                    },
+                  });
+                }
+                continue;
+              }
+              // Non-timeout errors still throw
+              throw new Error(msg || `Content generation failed (batch ${b + 1}, HTTP ${contentRes.status})`);
+            }
+
+            const { content: batchContent } = await contentRes.json();
+            allContentSlides.push(...batchContent.slides);
+          } catch (batchErr) {
+            const errMsg = batchErr instanceof Error ? batchErr.message : String(batchErr);
+            // Timeout-like errors: skip with fallback
+            if (errMsg.includes("too long") || errMsg.includes("timeout") || errMsg.includes("aborted") || errMsg.includes("504")) {
+              console.warn(`Batch ${b + 1} failed (timeout), using fallback: ${errMsg}`);
+              failedBatches++;
+              for (const slide of batches[b].slides) {
+                allContentSlides.push({
+                  id: slide.id,
+                  sectionLabel: batches[b].label || "Content",
+                  governingThought: slide.governingThought || "",
+                  subtitle: slide.subtitle || "",
+                  insightBar: slide.insightBar || { label: "", detail: "" },
+                  body: {
+                    pattern: "quote-callout" as const,
+                    quote: slide.governingThought || "Content generation timed out",
+                    attribution: "Orion — slide content pending",
+                    calloutBoxes: [
+                      { label: "Status", detail: "This slide timed out during generation. Re-generate or edit manually." },
+                    ],
+                  },
+                });
+              }
+              continue;
+            }
+            throw batchErr; // Re-throw non-timeout errors
           }
+        }
 
-          const { content: batchContent } = await contentRes.json();
-          allContentSlides.push(...batchContent.slides);
+        if (failedBatches > 0) {
+          console.warn(`${failedBatches}/${batches.length} batches timed out — deck has placeholder slides`);
         }
       } else {
         // Small deck — single call
