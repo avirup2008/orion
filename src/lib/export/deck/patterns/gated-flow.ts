@@ -136,6 +136,7 @@ export function renderGatedFlow(
       lineSpacingMultiple: 1.35,
       valign: "top",
       paraSpaceAfter: 4,
+      autoFit: true,
     });
 
     // ── Gate arrow to next phase ──
@@ -209,10 +210,13 @@ export function renderGatedFlow(
         });
       }
 
-      // Detail items — bold label + body text
+      // Detail items — bold label + body text (cap at 3 to prevent overflow)
       const itemStartY = heading ? detailY + 0.3 : detailY;
-      detail.items.forEach((item, ii) => {
-        const itemY = itemStartY + ii * 0.56;
+      const maxItems = Math.min(detail.items.length, 3);
+      detail.items.slice(0, maxItems).forEach((item, ii) => {
+        const itemY = itemStartY + ii * 0.52;
+        // Guard: don't render below the slide bottom
+        if (itemY + 0.48 > SLIDE.content.bottom + 0.8) return;
 
         slide.addText(
           [
@@ -237,9 +241,10 @@ export function renderGatedFlow(
             x: detailX,
             y: itemY,
             w: detailW - 0.1,
-            h: 0.52,
+            h: 0.48,
             fontFace: brand.fonts.body,
             valign: "top",
+            autoFit: true,
           },
         );
       });

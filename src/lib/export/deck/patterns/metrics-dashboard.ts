@@ -60,35 +60,38 @@ export function renderMetricsDashboard(
       x: tx + 0.25,
       y: ty + 0.15,
       w: tileW - 0.4,
-      h: 0.6,
-      fontSize: 36,
+      h: 0.5,
+      fontSize: 32,
       fontFace: brand.fonts.heading,
       color: accent,
       bold: true,
+      autoFit: true,
     });
 
     // Label
     slide.addText(metric.label, {
       x: tx + 0.25,
-      y: ty + 0.75,
+      y: ty + 0.68,
       w: tileW - 0.4,
       h: 0.3,
       fontSize: 11,
       fontFace: brand.fonts.body,
       color: brand.colors.dark,
       bold: true,
+      autoFit: true,
     });
 
     // Sublabel
     if (metric.sublabel) {
       slide.addText(metric.sublabel, {
         x: tx + 0.25,
-        y: ty + 1.05,
+        y: ty + 1.0,
         w: tileW - 0.4,
-        h: 0.3,
+        h: tileH - 1.1,
         fontSize: 8.5,
         fontFace: brand.fonts.body,
         color: brand.colors.grey50,
+        autoFit: true,
       });
     }
   });

@@ -54,10 +54,11 @@ export function renderWaterfall(
       y: barY + 0.2,
       w: barW - 0.3,
       h: 0.35,
-      fontSize: Math.min(24, Math.max(14, barW * 8)),
+      fontSize: Math.min(20, Math.max(12, barW * 6)),
       fontFace: brand.fonts.body,
       color: brand.colors.white,
       bold: true,
+      autoFit: true,
     });
 
     // Percentage
@@ -69,6 +70,7 @@ export function renderWaterfall(
       fontSize: 18,
       fontFace: brand.fonts.body,
       color: brand.colors.pale,
+      autoFit: true,
     });
 
     // Description inside (if bar is tall enough)
@@ -82,13 +84,15 @@ export function renderWaterfall(
         fontFace: brand.fonts.body,
         color: brand.colors.pale,
         valign: "top",
+        autoFit: true,
       });
     }
 
-    // Detail items below bars
+    // Detail items below bars (max 2 to prevent overflow)
     if (bar.details && bar.details.length > 0) {
       const detailY = contentBottom - 0.8;
-      bar.details.forEach((d, di) => {
+      const maxDetails = Math.min(bar.details.length, 2);
+      bar.details.slice(0, maxDetails).forEach((d, di) => {
         slide.addText(
           [
             { text: `${d.bold}\n`, options: { bold: true, color: brand.colors.dark, fontSize: 9 } },
@@ -101,6 +105,7 @@ export function renderWaterfall(
             h: 0.22,
             fontFace: brand.fonts.body,
             valign: "top",
+            autoFit: true,
           },
         );
       });
@@ -135,6 +140,7 @@ export function renderWaterfall(
       color: brand.colors.dark,
       bold: true,
       align: "center",
+      autoFit: true,
     });
 
     slide.addText(body.target.description, {
@@ -147,6 +153,7 @@ export function renderWaterfall(
       color: brand.colors.grey70,
       align: "center",
       valign: "top",
+      autoFit: true,
     });
   }
 }

@@ -90,6 +90,7 @@ export function addGoverningThought(
     fontFace: brand.fonts.heading,
     color: brand.colors.dark,
     bold: true,
+    autoFit: true,
   });
 
   // Subtitle — italic supporting line
@@ -102,6 +103,7 @@ export function addGoverningThought(
     fontFace: brand.fonts.body,
     color: brand.colors.grey50,
     italic: true,
+    autoFit: true,
   });
 
   // Separator line

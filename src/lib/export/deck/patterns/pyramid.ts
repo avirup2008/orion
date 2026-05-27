@@ -79,6 +79,7 @@ export function renderPyramid(
       fontFace: brand.fonts.body,
       color: brand.colors.white,
       bold: true,
+      autoFit: true,
     });
 
     // Layer description — smaller, pale, lower portion
@@ -91,6 +92,7 @@ export function renderPyramid(
       fontFace: brand.fonts.body,
       color: brand.colors.pale,
       lineSpacingMultiple: 1.15,
+      autoFit: true,
     });
 
     // ── Right-side annotation ─────────────────────────────────
@@ -120,6 +122,7 @@ export function renderPyramid(
       fontFace: brand.fonts.body,
       color: brand.colors.dark,
       bold: true,
+      autoFit: true,
     });
 
     // Annotation body — grey
@@ -132,6 +135,7 @@ export function renderPyramid(
       fontFace: brand.fonts.body,
       color: brand.colors.grey70,
       lineSpacingMultiple: 1.15,
+      autoFit: true,
     });
   });
 

@@ -21,13 +21,15 @@ export function renderStaircase(
   if (count === 0) return;
 
   const stairX = SLIDE.content.left;
-  const annotLeft = 9.5;
-  const annotWidth = SLIDE.content.right - annotLeft;
   const barGap = 0.1;
   const stairBarH = 0.6;
   const stairBaseY = SLIDE.content.bottom - 0.8;
-  const maxWidth = 9.0;
-  const widthStep = count > 1 ? (maxWidth - 4.0) / (count - 1) : 0;
+  // Leave 4.2" on the right for annotations — prevents bars overlapping text
+  const maxWidth = 7.8;
+  const minWidth = Math.max(3.5, maxWidth * 0.5);
+  const widthStep = count > 1 ? (maxWidth - minWidth) / (count - 1) : 0;
+  const annotLeft = stairX + maxWidth + 0.4;
+  const annotWidth = SLIDE.content.right - annotLeft;
 
   steps.forEach((step, i) => {
     const barW = maxWidth - i * widthStep;
@@ -51,11 +53,12 @@ export function renderStaircase(
       y: barY,
       w: barW - 0.4,
       h: stairBarH * 0.55,
-      fontSize: 13,
+      fontSize: 12,
       fontFace: brand.fonts.body,
       color: brand.colors.white,
       bold: true,
       valign: "bottom",
+      autoFit: true,
     });
 
     // Subtitle inside bar
@@ -68,17 +71,21 @@ export function renderStaircase(
       fontFace: brand.fonts.body,
       color: brand.colors.pale,
       valign: "top",
+      autoFit: true,
     });
 
-    // Connector to annotation
+    // Connector to annotation — dashed for cleaner look
     const lineY = barY + stairBarH / 2;
-    slide.addShape(pptx.ShapeType.line, {
-      x: stairX + barW,
-      y: lineY,
-      w: annotLeft - (stairX + barW) - 0.1,
-      h: 0,
-      line: { color: brand.colors.grey30, width: 0.5 },
-    });
+    const connectorW = annotLeft - (stairX + barW) - 0.1;
+    if (connectorW > 0.05) {
+      slide.addShape(pptx.ShapeType.line, {
+        x: stairX + barW,
+        y: lineY,
+        w: connectorW,
+        h: 0,
+        line: { color: brand.colors.grey30, width: 0.5, dashType: "dash" },
+      });
+    }
 
     // Annotation
     slide.addText(
@@ -93,6 +100,7 @@ export function renderStaircase(
         h: stairBarH,
         fontFace: brand.fonts.body,
         valign: "middle",
+        autoFit: true,
       },
     );
   });

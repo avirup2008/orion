@@ -42,6 +42,7 @@ export function renderQuoteCallout(
     italic: true,
     lineSpacingMultiple: 1.5,
     valign: "middle",
+    autoFit: true,
   });
 
   // Closing quote mark

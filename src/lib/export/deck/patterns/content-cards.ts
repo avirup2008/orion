@@ -25,7 +25,10 @@ export function renderContentCards(
   const cardGapY = 0.2;
   const cardW = (SLIDE.content.width - (cols - 1) * cardGapX) / cols;
   const maxCardH = (SLIDE.content.height - (rows - 1) * cardGapY) / rows;
-  const cardH = Math.min(maxCardH, 2.0);
+  // Allow cards up to 2.5" to give breathing room for metrics + body
+  const cardH = Math.min(maxCardH, 2.5);
+  // Scale metric font based on available card height
+  const metricFontSize = cardH < 1.8 ? 18 : cardH < 2.2 ? 22 : 26;
 
   cards.forEach((card, i) => {
     const col = i % cols;
@@ -57,55 +60,59 @@ export function renderContentCards(
     });
 
     // Metric callout (if present)
-    let titleY = cy + 0.2;
+    let titleY = cy + 0.15;
     if (card.metric) {
       slide.addText(card.metric.value, {
-        x: cx + 0.2,
-        y: cy + 0.15,
-        w: cardW - 0.4,
-        h: 0.4,
-        fontSize: 28,
+        x: cx + 0.15,
+        y: cy + 0.12,
+        w: cardW - 0.3,
+        h: 0.35,
+        fontSize: metricFontSize,
         fontFace: brand.fonts.heading,
         color: accent,
         bold: true,
+        autoFit: true,
       });
       slide.addText(card.metric.label, {
-        x: cx + 0.2,
-        y: cy + 0.5,
-        w: cardW - 0.4,
-        h: 0.2,
+        x: cx + 0.15,
+        y: cy + 0.45,
+        w: cardW - 0.3,
+        h: 0.18,
         fontSize: 8,
         fontFace: brand.fonts.body,
         color: brand.colors.grey50,
+        autoFit: true,
       });
-      titleY = cy + 0.8;
+      titleY = cy + 0.68;
     }
 
     // Card title
     slide.addText(card.title, {
-      x: cx + 0.2,
+      x: cx + 0.15,
       y: titleY,
-      w: cardW - 0.4,
-      h: 0.3,
-      fontSize: 12,
+      w: cardW - 0.3,
+      h: 0.28,
+      fontSize: 11,
       fontFace: brand.fonts.body,
       color: brand.colors.dark,
       bold: true,
+      autoFit: true,
     });
 
     // Card body text
-    const bodyY = titleY + 0.35;
-    const bodyH = cardH - (bodyY - cy) - 0.15;
+    const bodyY = titleY + 0.3;
+    const bodyH = cardH - (bodyY - cy) - 0.1;
     slide.addText(card.body, {
-      x: cx + 0.2,
+      x: cx + 0.15,
       y: bodyY,
-      w: cardW - 0.4,
+      w: cardW - 0.3,
       h: Math.max(bodyH, 0.3),
       fontSize: 9,
       fontFace: brand.fonts.body,
       color: brand.colors.grey70,
-      lineSpacingMultiple: 1.35,
+      lineSpacingMultiple: 1.3,
       valign: "top",
+      autoFit: true,
     });
   });
 }

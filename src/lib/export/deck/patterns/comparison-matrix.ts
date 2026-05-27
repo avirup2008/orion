@@ -81,6 +81,7 @@ export function renderComparisonMatrix(
       color: brand.colors.dark,
       bold: true,
       valign: "middle",
+      autoFit: true,
     });
 
     // Cells
@@ -111,6 +112,7 @@ export function renderComparisonMatrix(
         bold: cell.highlight,
         align: "center",
         valign: "middle",
+        autoFit: true,
       });
     });
   });

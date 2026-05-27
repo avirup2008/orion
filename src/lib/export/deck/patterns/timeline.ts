@@ -125,6 +125,7 @@ export function renderTimeline(
       fontFace: brand.fonts.body,
       color: brand.colors.dark,
       bold: true,
+      autoFit: true,
     });
 
     // Description
@@ -138,6 +139,7 @@ export function renderTimeline(
       color: brand.colors.grey70,
       lineSpacingMultiple: 1.3,
       valign: "top",
+      autoFit: true,
     });
 
     // Connector from card to node

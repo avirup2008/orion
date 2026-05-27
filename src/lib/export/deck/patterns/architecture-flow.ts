@@ -155,6 +155,7 @@ export function renderArchitectureFlow(
           h: cardH,
           fontFace: brand.fonts.body,
           valign: "middle",
+          autoFit: true,
         },
       );
     });
