@@ -41,9 +41,11 @@ async function callClaude(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // Tight timeouts: 38s Haiku, 40s Sonnet.
-      // Must leave ~20s headroom for Vercel function overhead (60s limit).
-      const timeoutMs = model.includes("haiku") ? 38_000 : 40_000;
+      // Timeouts: 50s Haiku, 52s Sonnet.
+      // Vercel function limit is 60s. Actual overhead (parsing + serialization)
+      // is ~3-5s, so 8-10s headroom is safe. Previous 38/40s was too tight for
+      // 10+ question RFPs — Haiku needs more time with large prompts.
+      const timeoutMs = model.includes("haiku") ? 50_000 : 52_000;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -116,7 +118,7 @@ async function callClaude(
 
       // Abort (our timeout) — don't retry, give clear message
       if (lastError.name === "AbortError" || lastError.message.includes("aborted")) {
-        const limitSec = model.includes("haiku") ? 38 : 40;
+        const limitSec = model.includes("haiku") ? 50 : 52;
         throw new Error(
           `Claude took too long to respond (>${limitSec}s). Try reducing slide count or simplifying input.`
         );
@@ -163,9 +165,10 @@ async function callClaudeWithTool(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      // Tight timeouts: 38s Haiku, 40s Sonnet.
-      // Must leave ~20s headroom for Vercel function overhead (60s limit).
-      const timeoutMs = model.includes("haiku") ? 38_000 : 40_000;
+      // Timeouts: 50s Haiku, 52s Sonnet.
+      // Vercel function limit is 60s. ~8-10s headroom is safe for
+      // request parsing + response serialization overhead.
+      const timeoutMs = model.includes("haiku") ? 50_000 : 52_000;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -264,7 +267,7 @@ async function callClaudeWithTool(
       lastError = err instanceof Error ? err : new Error(String(err));
 
       if (lastError.name === "AbortError" || lastError.message.includes("aborted")) {
-        const limitSec = model.includes("haiku") ? 38 : 40;
+        const limitSec = model.includes("haiku") ? 50 : 52;
         throw new Error(
           `Claude took too long to respond (>${limitSec}s). Try reducing slide count or simplifying input.`
         );
