@@ -81,6 +81,75 @@ const VALID_PATTERNS = [
 
 const VALID_PATTERN_SET = new Set<string>(VALID_PATTERNS);
 
+/**
+ * Remap invented/invalid pattern names to the closest valid pattern.
+ * Haiku often invents patterns like "section-divider", "key-metrics",
+ * "executive-summary", "two-column", etc. Instead of dropping these slides
+ * entirely (which caused validation failures), we remap them to a valid
+ * pattern that can render similar content.
+ */
+const PATTERN_REMAP: Record<string, string> = {
+  // Dividers — Haiku loves generating these but they're render-only
+  "section-divider": "content-cards",
+  "divider": "content-cards",
+  // Metric/KPI variants
+  "key-metrics": "metrics-dashboard",
+  "kpi-dashboard": "metrics-dashboard",
+  "metrics": "metrics-dashboard",
+  "roi-metrics": "metrics-dashboard",
+  "impact-metrics": "metrics-dashboard",
+  // Summary/overview variants
+  "executive-summary": "content-cards",
+  "summary": "content-cards",
+  "overview": "content-cards",
+  "introduction": "content-cards",
+  // Layout variants
+  "two-column": "content-cards",
+  "three-column": "content-cards",
+  "split-view": "content-cards",
+  "grid": "content-cards",
+  // Process/flow variants
+  "process-flow": "gated-flow",
+  "workflow": "gated-flow",
+  "phase-flow": "gated-flow",
+  "roadmap": "timeline",
+  "milestones": "timeline",
+  "gantt": "timeline",
+  // Team/org variants
+  "team-structure": "content-cards",
+  "org-chart": "content-cards",
+  "team": "content-cards",
+  // Comparison variants
+  "comparison": "comparison-matrix",
+  "versus": "comparison-matrix",
+  "pros-cons": "comparison-matrix",
+  // Architecture variants
+  "architecture": "architecture-flow",
+  "system-architecture": "architecture-flow",
+  "tech-stack": "architecture-flow",
+  // Quote variants
+  "quote": "quote-callout",
+  "testimonial": "quote-callout",
+  "callout": "quote-callout",
+  // Catch-all for anything with "card" or "list" in the name
+  "bullet-list": "content-cards",
+  "checklist": "content-cards",
+  "cards": "content-cards",
+};
+
+function remapPattern(pattern: string): string {
+  if (VALID_PATTERN_SET.has(pattern)) return pattern;
+  // Direct remap lookup
+  const remapped = PATTERN_REMAP[pattern];
+  if (remapped) return remapped;
+  // Fuzzy match: check if any remap key is a substring
+  for (const [key, val] of Object.entries(PATTERN_REMAP)) {
+    if (pattern.includes(key) || key.includes(pattern)) return val;
+  }
+  // Default fallback: content-cards handles anything
+  return "content-cards";
+}
+
 const PatternTypeSchema = z.enum(VALID_PATTERNS);
 
 /* ── Phase 1: Outline ───────────────────────────────────────────── */
@@ -96,16 +165,19 @@ const SlideOutlineSchema = z.object({
 
 const DeckSectionSchema = z.preprocess(
   (val) => {
-    // Filter out incomplete slides AND slides with invalid patterns
-    // (e.g. AI sometimes invents "section-divider" which is render-only)
+    // Remap invalid patterns to valid ones instead of dropping slides.
+    // Haiku invents patterns like "section-divider", "key-metrics" etc.
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const o = val as Record<string, unknown>;
       if (Array.isArray(o.slides)) {
+        for (const s of o.slides as Record<string, unknown>[]) {
+          if (s && typeof s === "object" && typeof s.pattern === "string") {
+            s.pattern = remapPattern(s.pattern as string);
+          }
+        }
+        // Only filter truly broken slides (missing id entirely)
         o.slides = (o.slides as Record<string, unknown>[]).filter((s) =>
-          s && typeof s === "object" &&
-          typeof s.id === "string" &&
-          typeof s.pattern === "string" &&
-          VALID_PATTERN_SET.has(s.pattern as string),
+          s && typeof s === "object" && typeof s.id === "string",
         );
       }
     }
@@ -122,20 +194,24 @@ export const DeckOutlineSchema = z.preprocess(
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const o = val as Record<string, unknown>;
 
-      // Pre-filter invalid slides from each section BEFORE checking section validity.
-      // This ensures sections whose only slides had invalid patterns get dropped.
+      // Remap invalid patterns in each section's slides to valid ones.
+      // Previously these were filtered out, causing sections to become empty
+      // and failing the min(2) sections validation.
       if (Array.isArray(o.sections)) {
         for (const sec of o.sections as Record<string, unknown>[]) {
           if (sec && typeof sec === "object" && Array.isArray(sec.slides)) {
+            for (const s of sec.slides as Record<string, unknown>[]) {
+              if (s && typeof s === "object" && typeof s.pattern === "string") {
+                s.pattern = remapPattern(s.pattern as string);
+              }
+            }
+            // Only filter truly broken slides (missing id)
             sec.slides = (sec.slides as Record<string, unknown>[]).filter((s) =>
-              s && typeof s === "object" &&
-              typeof s.id === "string" &&
-              typeof s.pattern === "string" &&
-              VALID_PATTERN_SET.has(s.pattern as string),
+              s && typeof s === "object" && typeof s.id === "string",
             );
           }
         }
-        // Now filter out incomplete/empty sections
+        // Filter out sections with no label or zero valid slides
         o.sections = (o.sections as Record<string, unknown>[]).filter((s) =>
           s && typeof s === "object" &&
           typeof s.label === "string" && s.label.length > 0 &&
