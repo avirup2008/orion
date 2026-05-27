@@ -341,21 +341,49 @@ export async function generateOutline(
   // with 10+ questions that produce 12-20 slides. With 50s timeout, 6144 is safe.
   const qCount = req.questions?.length || 0;
   const outlineTokens = qCount > 6 ? 6144 : 4096;
-  const raw = await callClaude(system, user, apiKey, outlineTokens, "claude-haiku-4-5-20251001");
 
-  let parsed: unknown;
-  try {
-    parsed = extractJSON(raw);
-  } catch (e) {
-    throw new Error(`Failed to parse outline JSON: ${e}`);
+  // Retry loop: Haiku occasionally invents invalid patterns that get filtered out
+  // during Zod preprocessing, leaving too few sections/slides. One retry fixes it.
+  const OUTLINE_MAX_ATTEMPTS = 2;
+  let outlineData: DeckOutline | null = null;
+  let lastOutlineError: Error | null = null;
+
+  for (let attempt = 0; attempt < OUTLINE_MAX_ATTEMPTS; attempt++) {
+    const raw = await callClaude(system, user, apiKey, outlineTokens, "claude-haiku-4-5-20251001");
+
+    let parsed: unknown;
+    try {
+      parsed = extractJSON(raw);
+    } catch (e) {
+      lastOutlineError = new Error(`Failed to parse outline JSON: ${e}`);
+      if (attempt < OUTLINE_MAX_ATTEMPTS - 1) {
+        console.warn(`Outline JSON parse failed (attempt ${attempt + 1}), retrying: ${e}`);
+        await sleep(1000);
+        continue;
+      }
+      throw lastOutlineError;
+    }
+
+    const result = validateOutline(parsed);
+    if (!result.success) {
+      const issues = result.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      lastOutlineError = new Error(`Invalid outline structure: ${issues}`);
+      if (attempt < OUTLINE_MAX_ATTEMPTS - 1) {
+        console.warn(`Outline validation failed (attempt ${attempt + 1}), retrying: ${issues}`);
+        await sleep(1000);
+        continue;
+      }
+      throw lastOutlineError;
+    }
+
+    outlineData = result.data as DeckOutline;
+    break;
   }
 
-  const result = validateOutline(parsed);
-  if (!result.success) {
-    const issues = result.error.issues
-      .map((i) => `${i.path.join(".")}: ${i.message}`)
-      .join("; ");
-    throw new Error(`Invalid outline structure: ${issues}`);
+  if (!outlineData) {
+    throw lastOutlineError || new Error("Outline generation failed after retries");
   }
 
   // Slide count guardrails: cap at MAX and warn if below MIN.
@@ -363,7 +391,7 @@ export async function generateOutline(
   // Minimum depends on question count — a 10-question RFP needs at least 10 slides.
   const MAX_SLIDES = req.targetSlideCount || 18;
   const MIN_SLIDES = req.targetSlideCount || (qCount > 6 ? 10 : qCount > 3 ? 6 : 4);
-  const outline = result.data as DeckOutline;
+  const outline = outlineData;
   let totalSlides = outline.sections.reduce((n, s) => n + s.slides.length, 0);
 
   if (totalSlides < MIN_SLIDES) {
